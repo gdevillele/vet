@@ -15,6 +15,7 @@ The shared layer is not a compiled library. It is the rule contract:
 
 - stable rule IDs;
 - default configuration;
+- language compatibility and implementation status;
 - diagnostic shape;
 - language-specific conformance fixtures;
 - shared documentation for what each rule means.
@@ -41,9 +42,32 @@ To control that:
 
 1. Every rule is defined in `spec/rules/v1.yaml`.
 2. Every implementation emits the same diagnostic fields.
-3. Every implementation should add conformance fixtures under `spec/conformance`.
-4. Language-specific behavior must be documented next to the rule when exact
+3. Every rule declares compatibility for every language listed by the spec.
+4. Every implementation should add conformance fixtures under `spec/conformance`.
+5. Language-specific behavior must be documented next to the rule when exact
    equivalence is impossible.
+
+## Language Compatibility
+
+Each rule has a `language_compatibility` map keyed by language. Compatibility
+status answers whether the rule is meaningful for that language; implementation
+status answers whether the native runner currently enforces it.
+
+Compatibility statuses:
+
+- `compatible`: the rule applies to the language.
+- `incompatible`: the rule does not apply to the language and must include a
+  reason.
+
+Implementation statuses:
+
+- `implemented`: the language runner enforces the rule.
+- `planned`: the rule is compatible, but implementation work is still planned.
+- `unimplemented`: the rule is compatible, but no implementation is scheduled.
+- `not-applicable`: the rule is incompatible with the language.
+
+All current rules are compatible with Go, Rust, and Swift. Go and Swift
+currently implement them; Rust is compatible but still planned.
 
 ## Implementation Boundary
 
@@ -59,6 +83,7 @@ The shared spec owns:
 
 - rule identity;
 - default thresholds;
+- language compatibility and implementation status;
 - config schema examples;
 - severity;
 - diagnostic vocabulary;
@@ -87,7 +112,8 @@ excluding the opening and closing brace lines.
 `forbidden`, `optional`, and `mandatory`.
 
 `VET008` enforces indentation type. Supported types are `tabs`, `spaces`, and
-`language-default`; the language default is tabs for Go and spaces for Swift.
+`language-default`; the language default is tabs for Go and spaces for Swift
+and Rust.
 
 `VET009` enforces space indentation width when the effective indentation type is
 spaces. A width of `0` disables the width check.

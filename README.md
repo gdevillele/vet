@@ -7,9 +7,9 @@ of one universal binary. A Go project should be able to run the Go vet runner
 with Go tooling, a Swift project with Swift tooling, and a Rust project with
 Rust tooling.
 
-The shared part is the rule contract: rule IDs, defaults, diagnostics, and
-conformance fixtures live in `spec/`. Each language implementation translates
-its syntax into those shared rules.
+The shared part is the rule contract: rule IDs, defaults, language
+compatibility, diagnostics, and conformance fixtures live in `spec/`. Each
+language implementation translates its syntax into those shared rules.
 
 ## Repository Layout
 
@@ -113,6 +113,10 @@ That means:
 - Swift users can run `swift run`.
 - Rust users can run `cargo run` or install a Rust-native binary.
 - Rule semantics do not drift between implementations.
+
+The shared rule spec records both compatibility and implementation status for
+Go, Rust, and Swift. All current rules are compatible with all three languages;
+Go and Swift are implemented, while Rust is still planned.
 
 See [docs/architecture.md](docs/architecture.md) for the rationale and planned
 implementation boundaries.

@@ -1,4 +1,8 @@
 version: 1
+languages:
+  - go
+  - rust
+  - swift
 diagnostic_fields:
   - rule_id
   - severity
@@ -12,10 +16,16 @@ rules:
     default_severity: error
     default_config:
       max: 1
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Functions must not declare more parameters than the configured maximum.
     notes:
       - Receivers such as Go method receivers are not counted as function parameters.
@@ -24,10 +34,16 @@ rules:
     default_severity: error
     default_config:
       required: false
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Source files must declare a leading file header when enabled.
     notes:
       - Go build constraints and generated-code markers do not count as file headers.
@@ -36,10 +52,16 @@ rules:
     default_severity: error
     default_config:
       min: 0
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Source file headers must be at least the configured number of characters.
     notes:
       - A value of 0 disables the lower bound.
@@ -49,10 +71,16 @@ rules:
     default_severity: error
     default_config:
       max: 0
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Source file headers must be at most the configured number of characters.
     notes:
       - A value of 0 disables the upper bound.
@@ -62,10 +90,16 @@ rules:
     default_severity: error
     default_config:
       max: 0
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Source files must not exceed the configured number of physical lines.
     notes:
       - A value of 0 disables the rule.
@@ -75,10 +109,16 @@ rules:
     default_severity: error
     default_config:
       max: 0
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Function bodies must not exceed the configured number of physical lines.
     notes:
       - A value of 0 disables the rule.
@@ -88,10 +128,16 @@ rules:
     default_severity: error
     default_config:
       policy: optional
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Function docstrings must follow the configured policy.
     notes:
       - Supported policies are forbidden, optional, and mandatory.
@@ -101,10 +147,16 @@ rules:
     default_severity: error
     default_config:
       type: language-default
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Source indentation must use the configured indentation type.
     notes:
       - Supported types are tabs, spaces, and language-default.
@@ -116,10 +168,16 @@ rules:
     default_severity: error
     default_config:
       width: 0
-    applies_to:
-      - go
-      - rust
-      - swift
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
     summary: Space indentation must be a multiple of the configured width.
     notes:
       - A value of 0 disables the rule.
