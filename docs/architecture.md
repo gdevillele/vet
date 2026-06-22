@@ -59,14 +59,21 @@ The shared spec owns:
 
 - rule identity;
 - default thresholds;
+- config schema examples;
 - severity;
 - diagnostic vocabulary;
 - conformance fixtures.
 
-## Initial Rule
+## Initial Rules
 
 `VET001` enforces a maximum number of function parameters. The default maximum
 is `1`.
 
 The rule counts explicit function parameters. In Go, method receivers are not
 counted as parameters for this rule.
+
+`VET002` requires source files to have a leading file header when enabled.
+
+`VET003` and `VET004` enforce minimum and maximum header lengths. Header length
+is counted after stripping comment delimiters and surrounding whitespace. A
+value of `0` disables the corresponding length bound.

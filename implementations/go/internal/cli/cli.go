@@ -38,12 +38,28 @@ type renderRequest struct {
 	Diagnostics []diagnostic.Diagnostic
 }
 
+type configPathSelection struct {
+	Visited map[string]bool
+	Long    string
+	Short   string
+}
+
 func Run(invocation Invocation) int {
+	if usesSingleDashConfig(invocation.Args) {
+		fmt.Fprintln(invocation.Stderr, "vet: use -c or --config, not -config")
+		return 2
+	}
+
 	flags := flag.NewFlagSet("vet", flag.ContinueOnError)
 	flags.SetOutput(invocation.Stderr)
 
+	configPath := flags.String("config", "", "path to vet YAML config file")
+	configShortPath := flags.String("c", "", "path to vet YAML config file")
 	format := flags.String("format", "text", "output format: text or json")
 	maxFunctionParameters := flags.Int("max-function-parameters", config.DefaultMaxFunctionParameters, "maximum allowed function parameters")
+	requireFileHeader := flags.Bool("require-file-header", false, "require every source file to have a leading header comment")
+	minFileHeaderLength := flags.Int("min-file-header-length", 0, "minimum header length in characters; 0 disables the bound")
+	maxFileHeaderLength := flags.Int("max-file-header-length", 0, "maximum header length in characters; 0 disables the bound")
 	version := flags.Bool("version", false, "print version")
 
 	if err := flags.Parse(invocation.Args); err != nil {
@@ -55,13 +71,48 @@ func Run(invocation Invocation) int {
 		return 0
 	}
 
-	if *maxFunctionParameters < 0 {
-		fmt.Fprintln(invocation.Stderr, "vet: -max-function-parameters must be zero or greater")
+	visited := visitedFlags(flags)
+	cfg := config.Default()
+	selectedConfigPath, err := selectConfigPath(configPathSelection{
+		Visited: visited,
+		Long:    *configPath,
+		Short:   *configShortPath,
+	})
+	if err != nil {
+		fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
 		return 2
 	}
 
-	cfg := config.Default()
-	cfg.MaxFunctionParameters.Max = *maxFunctionParameters
+	if selectedConfigPath != "" {
+		loadedConfig, err := config.LoadFile(config.LoadFileRequest{
+			Path: selectedConfigPath,
+			Base: cfg,
+		})
+		if err != nil {
+			fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
+			return 2
+		}
+
+		cfg = loadedConfig
+	}
+
+	if visited["max-function-parameters"] {
+		cfg.MaxFunctionParameters.Max = *maxFunctionParameters
+	}
+	if visited["require-file-header"] {
+		cfg.SourceFileHeader.Required = *requireFileHeader
+	}
+	if visited["min-file-header-length"] {
+		cfg.SourceFileHeader.MinLength = *minFileHeaderLength
+	}
+	if visited["max-file-header-length"] {
+		cfg.SourceFileHeader.MaxLength = *maxFileHeaderLength
+	}
+
+	if err := config.Validate(cfg); err != nil {
+		fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
+		return 2
+	}
 
 	paths := flags.Args()
 	if len(paths) == 0 {
@@ -121,6 +172,47 @@ func Run(invocation Invocation) int {
 	}
 
 	return 0
+}
+
+func usesSingleDashConfig(args []string) bool {
+	for _, arg := range args {
+		if arg == "--" {
+			return false
+		}
+
+		if arg == "-config" || strings.HasPrefix(arg, "-config=") {
+			return true
+		}
+	}
+
+	return false
+}
+
+func selectConfigPath(request configPathSelection) (string, error) {
+	longVisited := request.Visited["config"]
+	shortVisited := request.Visited["c"]
+	if longVisited && shortVisited && request.Long != request.Short {
+		return "", fmt.Errorf("-c and --config cannot point to different files")
+	}
+
+	if shortVisited {
+		return request.Short, nil
+	}
+
+	if longVisited {
+		return request.Long, nil
+	}
+
+	return "", nil
+}
+
+func visitedFlags(flags *flag.FlagSet) map[string]bool {
+	visited := make(map[string]bool)
+	flags.Visit(func(item *flag.Flag) {
+		visited[item.Name] = true
+	})
+
+	return visited
 }
 
 func collectGoFiles(paths []string) ([]string, error) {

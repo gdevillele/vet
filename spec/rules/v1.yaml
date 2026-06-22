@@ -19,3 +19,41 @@ rules:
     summary: Functions must not declare more parameters than the configured maximum.
     notes:
       - Receivers such as Go method receivers are not counted as function parameters.
+  VET002:
+    name: source-file-header-required
+    default_severity: error
+    default_config:
+      required: false
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Source files must declare a leading file header when enabled.
+    notes:
+      - Go build constraints and generated-code markers do not count as file headers.
+  VET003:
+    name: source-file-header-min-length
+    default_severity: error
+    default_config:
+      min: 0
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Source file headers must be at least the configured number of characters.
+    notes:
+      - A value of 0 disables the lower bound.
+      - Header length is counted after stripping comment delimiters and surrounding whitespace.
+  VET004:
+    name: source-file-header-max-length
+    default_severity: error
+    default_config:
+      max: 0
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Source file headers must be at most the configured number of characters.
+    notes:
+      - A value of 0 disables the upper bound.
+      - Header length is counted after stripping comment delimiters and surrounding whitespace.

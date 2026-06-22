@@ -1,0 +1,9 @@
+version: 1
+rules:
+  max-function-parameters:
+    enabled: true
+    max: 1
+  source-file-header:
+    required: true
+    min-length: 40
+    max-length: 400

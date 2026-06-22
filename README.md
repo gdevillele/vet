@@ -35,8 +35,44 @@ From `implementations/go`:
 go run ./cmd/vet ./...
 ```
 
-The first implemented rule is `VET001`, which rejects functions with more than
-one parameter by default.
+The default enabled rule is `VET001`, which rejects functions with more than one
+parameter.
+
+Header rules are available behind CLI flags:
+
+```sh
+go run ./implementations/go/cmd/vet \
+  -require-file-header \
+  -min-file-header-length 40 \
+  -max-file-header-length 400 \
+  ./implementations/go/...
+```
+
+`-min-file-header-length 0` and `-max-file-header-length 0` disable the
+corresponding length bound. Length bounds apply to files that have headers;
+combine them with `-require-file-header` to make missing headers fail too.
+
+Projects can put rule settings in a YAML config file:
+
+```yaml
+version: 1
+rules:
+  max-function-parameters:
+    enabled: true
+    max: 1
+  source-file-header:
+    required: true
+    min-length: 40
+    max-length: 400
+```
+
+Run with:
+
+```sh
+go run ./implementations/go/cmd/vet --config .vet.yaml ./...
+```
+
+Explicit CLI flags override values from the config file.
 
 ## Architecture Decision
 
