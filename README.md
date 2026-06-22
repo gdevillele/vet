@@ -35,6 +35,12 @@ From `implementations/go`:
 go run ./cmd/vet ./...
 ```
 
+From `implementations/swift`:
+
+```sh
+swift run vet ../../spec/conformance/max-function-parameters/swift
+```
+
 The default enabled rule is `VET001`, which rejects functions with more than one
 parameter.
 

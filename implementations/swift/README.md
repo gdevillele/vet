@@ -1,16 +1,27 @@
 # Swift Implementation
 
-This directory will contain the Swift-native `vet` runner.
+This directory contains the Swift-native `vet` runner.
 
-Expected usage:
+Usage:
 
 ```sh
 swift run vet path/to/project
 ```
 
-The Swift implementation should consume the shared rule contract in `../../spec`
-and emit the same diagnostic shape as the other implementations.
+With config:
 
-Likely parser option:
+```sh
+swift run vet --config ../../spec/config/v1.example.yaml path/to/project
+swift run vet -c ../../spec/config/v1.example.yaml path/to/project
+```
 
-- SwiftSyntax, with SwiftPM integration once the CLI shape is stable.
+Supported rules:
+
+- `VET001`: maximum function parameters;
+- `VET002`: required source file header;
+- `VET003`: minimum source file header length;
+- `VET004`: maximum source file header length.
+
+The first implementation uses a lightweight lexical analyzer. The parser
+boundary is isolated so it can be replaced with SwiftSyntax later without
+changing the CLI contract.

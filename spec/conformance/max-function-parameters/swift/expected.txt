@@ -1,0 +1,1 @@
+spec/conformance/max-function-parameters/swift/invalid.swift:3:6: VET001: rejected has 2 parameters; maximum allowed is 1
