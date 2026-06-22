@@ -1,0 +1,21 @@
+version: 1
+diagnostic_fields:
+  - rule_id
+  - severity
+  - message
+  - file
+  - line
+  - column
+rules:
+  VET001:
+    name: max-function-parameters
+    default_severity: error
+    default_config:
+      max: 1
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Functions must not declare more parameters than the configured maximum.
+    notes:
+      - Receivers such as Go method receivers are not counted as function parameters.

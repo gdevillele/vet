@@ -1,0 +1,2 @@
+spec/conformance/max-function-parameters/go/invalid.go:5:6: VET001: rejected has 2 parameters; maximum allowed is 1
+spec/conformance/max-function-parameters/go/invalid.go:7:9: VET001: function literal has 2 parameters; maximum allowed is 1
