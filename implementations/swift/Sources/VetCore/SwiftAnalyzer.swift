@@ -5,6 +5,11 @@ public enum RuleID {
     public static let sourceFileHeaderRequired = "VET002"
     public static let sourceFileHeaderMin = "VET003"
     public static let sourceFileHeaderMax = "VET004"
+    public static let sourceFileLines = "VET005"
+    public static let functionBodyLines = "VET006"
+    public static let functionDocstring = "VET007"
+    public static let indentType = "VET008"
+    public static let indentWidth = "VET009"
 }
 
 public struct AnalyzeFileRequest {
@@ -26,19 +31,29 @@ public struct SwiftAnalyzer {
 
     public func analyzeFile(_ request: AnalyzeFileRequest) -> [Diagnostic] {
         var diagnostics: [Diagnostic] = []
+        diagnostics.append(contentsOf: SourceFileLineAnalyzer.analyze(SourceFileLineAnalyzeRequest(
+            path: request.path,
+            source: request.source,
+            rule: config.sourceFileLines
+        )))
+        diagnostics.append(contentsOf: IndentationAnalyzer.analyze(IndentAnalyzeRequest(
+            path: request.path,
+            source: request.source,
+            rule: config.indent
+        )))
         diagnostics.append(contentsOf: SourceFileHeaderAnalyzer.analyze(HeaderAnalyzeRequest(
             path: request.path,
             source: request.source,
             rule: config.sourceFileHeader
         )))
 
-        if config.maxFunctionParameters.enabled {
-            diagnostics.append(contentsOf: FunctionParameterAnalyzer.analyze(FunctionAnalyzeRequest(
-                path: request.path,
-                source: request.source,
-                max: config.maxFunctionParameters.max
-            )))
-        }
+        diagnostics.append(contentsOf: FunctionParameterAnalyzer.analyze(FunctionAnalyzeRequest(
+            path: request.path,
+            source: request.source,
+            maxParameters: config.maxFunctionParameters.enabled ? config.maxFunctionParameters.max : nil,
+            maxBodyLines: config.functionBodyLines.max,
+            docstringPolicy: config.functionDocstring.policy
+        )))
 
         return diagnostics
     }

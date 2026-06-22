@@ -4,11 +4,19 @@ import Yams
 public struct VetConfig: Equatable {
     public var maxFunctionParameters: MaxFunctionParametersRule
     public var sourceFileHeader: SourceFileHeaderRule
+    public var sourceFileLines: SourceFileLinesRule
+    public var functionBodyLines: FunctionBodyLinesRule
+    public var functionDocstring: FunctionDocstringRule
+    public var indent: IndentRule
 
     public static func `default`() -> VetConfig {
         VetConfig(
             maxFunctionParameters: MaxFunctionParametersRule(enabled: true, max: 1),
-            sourceFileHeader: SourceFileHeaderRule(required: false, minLength: 0, maxLength: 0)
+            sourceFileHeader: SourceFileHeaderRule(required: false, minLength: 0, maxLength: 0),
+            sourceFileLines: SourceFileLinesRule(max: 0),
+            functionBodyLines: FunctionBodyLinesRule(max: 0),
+            functionDocstring: FunctionDocstringRule(policy: .optional),
+            indent: IndentRule(type: .languageDefault, width: 0)
         )
     }
 }
@@ -22,6 +30,35 @@ public struct SourceFileHeaderRule: Equatable {
     public var required: Bool
     public var minLength: Int
     public var maxLength: Int
+}
+
+public struct SourceFileLinesRule: Equatable {
+    public var max: Int
+}
+
+public struct FunctionBodyLinesRule: Equatable {
+    public var max: Int
+}
+
+public enum FunctionDocstringPolicy: String, Codable, Equatable {
+    case forbidden
+    case optional
+    case mandatory
+}
+
+public struct FunctionDocstringRule: Equatable {
+    public var policy: FunctionDocstringPolicy
+}
+
+public enum IndentType: String, Codable, Equatable {
+    case tabs
+    case spaces
+    case languageDefault = "language-default"
+}
+
+public struct IndentRule: Equatable {
+    public var type: IndentType
+    public var width: Int
 }
 
 public struct ConfigLoadRequest {
@@ -42,10 +79,18 @@ struct ConfigFile: Decodable {
 struct RulesFile: Decodable {
     let maxFunctionParameters: MaxFunctionParametersFile?
     let sourceFileHeader: SourceFileHeaderFile?
+    let sourceFileLines: SourceFileLinesFile?
+    let functionBodyLines: FunctionBodyLinesFile?
+    let functionDocstring: FunctionDocstringFile?
+    let indent: IndentFile?
 
     enum CodingKeys: String, CodingKey {
         case maxFunctionParameters = "max-function-parameters"
         case sourceFileHeader = "source-file-header"
+        case sourceFileLines = "max-source-file-lines"
+        case functionBodyLines = "max-function-body-lines"
+        case functionDocstring = "function-docstring"
+        case indent
     }
 }
 
@@ -64,6 +109,23 @@ struct SourceFileHeaderFile: Decodable {
         case minLength = "min-length"
         case maxLength = "max-length"
     }
+}
+
+struct SourceFileLinesFile: Decodable {
+    let max: Int?
+}
+
+struct FunctionBodyLinesFile: Decodable {
+    let max: Int?
+}
+
+struct FunctionDocstringFile: Decodable {
+    let policy: FunctionDocstringPolicy?
+}
+
+struct IndentFile: Decodable {
+    let type: IndentType?
+    let width: Int?
 }
 
 public enum ConfigError: Error, CustomStringConvertible, Equatable {
@@ -111,6 +173,33 @@ public enum ConfigLoader {
             }
         }
 
+        if let rule = document.rules?.sourceFileLines {
+            if let max = rule.max {
+                result.sourceFileLines.max = max
+            }
+        }
+
+        if let rule = document.rules?.functionBodyLines {
+            if let max = rule.max {
+                result.functionBodyLines.max = max
+            }
+        }
+
+        if let rule = document.rules?.functionDocstring {
+            if let policy = rule.policy {
+                result.functionDocstring.policy = policy
+            }
+        }
+
+        if let rule = document.rules?.indent {
+            if let type = rule.type {
+                result.indent.type = type
+            }
+            if let width = rule.width {
+                result.indent.width = width
+            }
+        }
+
         try validate(result)
         return result
     }
@@ -129,6 +218,15 @@ public enum ConfigLoader {
             config.sourceFileHeader.maxLength > 0 &&
             config.sourceFileHeader.maxLength < config.sourceFileHeader.minLength {
             throw ConfigError.invalid("source-file-header.max-length must be greater than or equal to source-file-header.min-length")
+        }
+        if config.sourceFileLines.max < 0 {
+            throw ConfigError.invalid("max-source-file-lines.max must be zero or greater")
+        }
+        if config.functionBodyLines.max < 0 {
+            throw ConfigError.invalid("max-function-body-lines.max must be zero or greater")
+        }
+        if config.indent.width < 0 {
+            throw ConfigError.invalid("indent.width must be zero or greater")
         }
     }
 }

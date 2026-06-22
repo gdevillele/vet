@@ -3,7 +3,9 @@ import Foundation
 struct FunctionAnalyzeRequest {
     let path: String
     let source: String
-    let max: Int
+    let maxParameters: Int?
+    let maxBodyLines: Int
+    let docstringPolicy: FunctionDocstringPolicy
 }
 
 struct FunctionCandidate {
@@ -11,11 +13,15 @@ struct FunctionCandidate {
     let nameOffset: Int
     let parameterStart: Int
     let parameterEnd: Int
+    let bodyStart: Int?
+    let bodyEnd: Int?
+    let docstring: Bool
 }
 
 enum FunctionParameterAnalyzer {
     static func analyze(_ request: FunctionAnalyzeRequest) -> [Diagnostic] {
         let characters = Array(maskNonCode(request.source))
+        let originalCharacters = Array(request.source)
         var diagnostics: [Diagnostic] = []
         var cursor = 0
 
@@ -25,17 +31,61 @@ enum FunctionParameterAnalyzer {
                 continue
             }
 
-            if let candidate = readFunction(FunctionReadRequest(characters: characters, offset: cursor)) {
-                let count = parameterCount(ParameterCountRequest(
-                    characters: characters,
-                    start: candidate.parameterStart,
-                    end: candidate.parameterEnd
-                ))
+            if let candidate = readFunction(FunctionReadRequest(
+                characters: characters,
+                originalCharacters: originalCharacters,
+                offset: cursor
+            )) {
+                if let max = request.maxParameters {
+                    let count = parameterCount(ParameterCountRequest(
+                        characters: characters,
+                        start: candidate.parameterStart,
+                        end: candidate.parameterEnd
+                    ))
+                    if count > max {
+                        diagnostics.append(makeDiagnostic(DiagnosticBuildRequest(
+                            ruleID: RuleID.maxFunctionParameters,
+                            message: "\(candidate.name) has \(count) parameters; maximum allowed is \(max)",
+                            path: request.path,
+                            source: request.source,
+                            offset: candidate.nameOffset
+                        )))
+                    }
+                }
 
-                if count > request.max {
+                if request.maxBodyLines > 0,
+                   let bodyStart = candidate.bodyStart,
+                   let bodyEnd = candidate.bodyEnd {
+                    let count = functionBodyLineCount(FunctionBodyLineCountRequest(
+                        source: request.source,
+                        bodyStart: bodyStart,
+                        bodyEnd: bodyEnd
+                    ))
+                    if count > request.maxBodyLines {
+                        diagnostics.append(makeDiagnostic(DiagnosticBuildRequest(
+                            ruleID: RuleID.functionBodyLines,
+                            message: "\(candidate.name) body has \(count) lines; maximum allowed is \(request.maxBodyLines)",
+                            path: request.path,
+                            source: request.source,
+                            offset: candidate.nameOffset
+                        )))
+                    }
+                }
+
+                if request.docstringPolicy == .mandatory && !candidate.docstring {
                     diagnostics.append(makeDiagnostic(DiagnosticBuildRequest(
-                        ruleID: RuleID.maxFunctionParameters,
-                        message: "\(candidate.name) has \(count) parameters; maximum allowed is \(request.max)",
+                        ruleID: RuleID.functionDocstring,
+                        message: "\(candidate.name) must have a docstring",
+                        path: request.path,
+                        source: request.source,
+                        offset: candidate.nameOffset
+                    )))
+                }
+
+                if request.docstringPolicy == .forbidden && candidate.docstring {
+                    diagnostics.append(makeDiagnostic(DiagnosticBuildRequest(
+                        ruleID: RuleID.functionDocstring,
+                        message: "\(candidate.name) must not have a docstring",
                         path: request.path,
                         source: request.source,
                         offset: candidate.nameOffset
@@ -80,12 +130,19 @@ enum FunctionParameterAnalyzer {
         guard let parameterEnd = findClosingParen(ParenFindRequest(characters: request.characters, offset: cursor)) else {
             return nil
         }
+        let bodyStart = findBodyStart(BodyStartFindRequest(characters: request.characters, offset: parameterEnd + 1))
+        let bodyEnd = bodyStart.flatMap { start in
+            findClosingBrace(BraceFindRequest(characters: request.characters, offset: start))
+        }
 
         return FunctionCandidate(
             name: name.isEmpty ? "function" : name,
             nameOffset: nameOffset,
             parameterStart: parameterStart,
-            parameterEnd: parameterEnd
+            parameterEnd: parameterEnd,
+            bodyStart: bodyStart,
+            bodyEnd: bodyEnd,
+            docstring: hasFunctionDocstring(DocstringLookupRequest(characters: request.originalCharacters, offset: request.offset))
         )
     }
 
@@ -136,6 +193,41 @@ enum FunctionParameterAnalyzer {
             if request.characters[cursor] == "(" {
                 depth += 1
             } else if request.characters[cursor] == ")" {
+                depth -= 1
+                if depth == 0 {
+                    return cursor
+                }
+            }
+            cursor += 1
+        }
+
+        return nil
+    }
+
+    private static func findBodyStart(_ request: BodyStartFindRequest) -> Int? {
+        var cursor = request.offset
+        while cursor < request.characters.count {
+            let character = request.characters[cursor]
+            if character == "{" {
+                return cursor
+            }
+            if character == "=" || character == ";" {
+                return nil
+            }
+            cursor += 1
+        }
+
+        return nil
+    }
+
+    private static func findClosingBrace(_ request: BraceFindRequest) -> Int? {
+        var depth = 0
+        var cursor = request.offset
+
+        while cursor < request.characters.count {
+            if request.characters[cursor] == "{" {
+                depth += 1
+            } else if request.characters[cursor] == "}" {
                 depth -= 1
                 if depth == 0 {
                     return cursor
@@ -245,8 +337,44 @@ enum FunctionParameterAnalyzer {
     }
 }
 
+func functionBodyLineCount(_ request: FunctionBodyLineCountRequest) -> Int {
+    let start = SourceLocations.location(LocationRequest(source: request.source, offset: request.bodyStart)).line
+    let end = SourceLocations.location(LocationRequest(source: request.source, offset: request.bodyEnd)).line
+    return max(0, end - start - 1)
+}
+
+func hasFunctionDocstring(_ request: DocstringLookupRequest) -> Bool {
+    var cursor = request.offset - 1
+    while cursor >= 0 {
+        let character = request.characters[cursor]
+        if character == " " || character == "\t" || character == "\r" || character == "\n" {
+            cursor -= 1
+        } else {
+            break
+        }
+    }
+
+    if cursor < 0 {
+        return false
+    }
+
+    let prefix = String(request.characters[0...cursor]).trimmingCharacters(in: .whitespacesAndNewlines)
+    if prefix.hasSuffix("*/") {
+        return prefix.contains("/**")
+    }
+
+    var lineStart = cursor
+    while lineStart > 0 && request.characters[lineStart - 1] != "\n" {
+        lineStart -= 1
+    }
+
+    let line = String(request.characters[lineStart...cursor]).trimmingCharacters(in: .whitespaces)
+    return line.hasPrefix("///")
+}
+
 struct FunctionReadRequest {
     let characters: [Character]
+    let originalCharacters: [Character]
     let offset: Int
 }
 
@@ -261,7 +389,28 @@ struct ParenFindRequest {
     let offset: Int
 }
 
+struct BodyStartFindRequest {
+    let characters: [Character]
+    let offset: Int
+}
+
+struct BraceFindRequest {
+    let characters: [Character]
+    let offset: Int
+}
+
 struct SpaceSkipRequest {
+    let characters: [Character]
+    let offset: Int
+}
+
+struct FunctionBodyLineCountRequest {
+    let source: String
+    let bodyStart: Int
+    let bodyEnd: Int
+}
+
+struct DocstringLookupRequest {
     let characters: [Character]
     let offset: Int
 }

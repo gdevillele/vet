@@ -171,3 +171,184 @@ package sample
 		t.Fatalf("expected rule %q, got %q", RuleSourceFileHeaderRequired, diagnostics[0].RuleID)
 	}
 }
+
+func TestAnalyzeFileReportsSourceFileAboveMaximumLines(t *testing.T) {
+	cfg := config.Default()
+	cfg.SourceFileLines.Max = 2
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path: "sample.go",
+		Source: []byte(`package sample
+
+var value = 1
+`),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
+	}
+
+	if diagnostics[0].RuleID != RuleSourceFileLines {
+		t.Fatalf("expected rule %q, got %q", RuleSourceFileLines, diagnostics[0].RuleID)
+	}
+}
+
+func TestAnalyzeFileReportsFunctionBodyAboveMaximumLines(t *testing.T) {
+	cfg := config.Default()
+	cfg.FunctionBodyLines.Max = 1
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path: "sample.go",
+		Source: []byte(`package sample
+
+func rejected() {
+	println("one")
+	println("two")
+}
+`),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
+	}
+
+	if diagnostics[0].RuleID != RuleFunctionBodyLines {
+		t.Fatalf("expected rule %q, got %q", RuleFunctionBodyLines, diagnostics[0].RuleID)
+	}
+}
+
+func TestAnalyzeFileReportsMissingMandatoryFunctionDocstring(t *testing.T) {
+	cfg := config.Default()
+	cfg.FunctionDocstring.Policy = config.FunctionDocstringMandatory
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path: "sample.go",
+		Source: []byte(`package sample
+
+func missing() {}
+
+// documented has a docstring.
+func documented() {}
+`),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
+	}
+
+	if diagnostics[0].RuleID != RuleFunctionDocstring {
+		t.Fatalf("expected rule %q, got %q", RuleFunctionDocstring, diagnostics[0].RuleID)
+	}
+}
+
+func TestAnalyzeFileReportsForbiddenFunctionDocstring(t *testing.T) {
+	cfg := config.Default()
+	cfg.FunctionDocstring.Policy = config.FunctionDocstringForbidden
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path: "sample.go",
+		Source: []byte(`package sample
+
+// documented has a docstring.
+func documented() {}
+`),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
+	}
+
+	if diagnostics[0].RuleID != RuleFunctionDocstring {
+		t.Fatalf("expected rule %q, got %q", RuleFunctionDocstring, diagnostics[0].RuleID)
+	}
+}
+
+func TestAnalyzeFileReportsTabsWhenSpacesIndentRequired(t *testing.T) {
+	cfg := config.Default()
+	cfg.Indent.Type = config.IndentSpaces
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.go",
+		Source: []byte("package sample\n\nfunc rejected() {\n\tprintln(\"one\")\n}\n"),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
+	}
+
+	if diagnostics[0].RuleID != RuleIndentType {
+		t.Fatalf("expected rule %q, got %q", RuleIndentType, diagnostics[0].RuleID)
+	}
+}
+
+func TestAnalyzeFileReportsSpacesWhenTabsIndentRequired(t *testing.T) {
+	cfg := config.Default()
+	cfg.Indent.Type = config.IndentTabs
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.go",
+		Source: []byte("package sample\n\nfunc rejected() {\n  println(\"one\")\n}\n"),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
+	}
+
+	if diagnostics[0].RuleID != RuleIndentType {
+		t.Fatalf("expected rule %q, got %q", RuleIndentType, diagnostics[0].RuleID)
+	}
+}
+
+func TestAnalyzeFileReportsIndentWidthViolation(t *testing.T) {
+	cfg := config.Default()
+	cfg.Indent.Type = config.IndentSpaces
+	cfg.Indent.Width = 4
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.go",
+		Source: []byte("package sample\n\nfunc rejected() {\n  println(\"one\")\n}\n"),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
+	}
+
+	if diagnostics[0].RuleID != RuleIndentWidth {
+		t.Fatalf("expected rule %q, got %q", RuleIndentWidth, diagnostics[0].RuleID)
+	}
+}
+
+func TestAnalyzeFileIgnoresRawStringIndentation(t *testing.T) {
+	diagnostics, err := New(config.Default()).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.go",
+		Source: []byte("package sample\n\nvar text = `\n  not Go indentation\n`\n"),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
+	}
+}

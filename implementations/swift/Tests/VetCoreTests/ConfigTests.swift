@@ -16,6 +16,15 @@ final class ConfigTests: XCTestCase {
             required: true
             min-length: 10
             max-length: 80
+          max-source-file-lines:
+            max: 100
+          max-function-body-lines:
+            max: 12
+          function-docstring:
+            policy: mandatory
+          indent:
+            type: spaces
+            width: 4
         """
 
         try yaml.write(to: configPath, atomically: true, encoding: .utf8)
@@ -30,12 +39,34 @@ final class ConfigTests: XCTestCase {
         XCTAssertTrue(config.sourceFileHeader.required)
         XCTAssertEqual(config.sourceFileHeader.minLength, 10)
         XCTAssertEqual(config.sourceFileHeader.maxLength, 80)
+        XCTAssertEqual(config.sourceFileLines.max, 100)
+        XCTAssertEqual(config.functionBodyLines.max, 12)
+        XCTAssertEqual(config.functionDocstring.policy, .mandatory)
+        XCTAssertEqual(config.indent.type, .spaces)
+        XCTAssertEqual(config.indent.width, 4)
     }
 
     func testValidateRejectsInvalidHeaderBounds() {
         var config = VetConfig.default()
         config.sourceFileHeader.minLength = 20
         config.sourceFileHeader.maxLength = 10
+
+        XCTAssertThrowsError(try ConfigLoader.validate(config))
+    }
+
+    func testValidateRejectsInvalidLineBounds() {
+        var config = VetConfig.default()
+        config.sourceFileLines.max = -1
+        XCTAssertThrowsError(try ConfigLoader.validate(config))
+
+        config = .default()
+        config.functionBodyLines.max = -1
+        XCTAssertThrowsError(try ConfigLoader.validate(config))
+    }
+
+    func testValidateRejectsInvalidIndentWidth() {
+        var config = VetConfig.default()
+        config.indent.width = -1
 
         XCTAssertThrowsError(try ConfigLoader.validate(config))
     }

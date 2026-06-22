@@ -20,7 +20,12 @@ Supported rules:
 - `VET001`: maximum function parameters;
 - `VET002`: required source file header;
 - `VET003`: minimum source file header length;
-- `VET004`: maximum source file header length.
+- `VET004`: maximum source file header length;
+- `VET005`: maximum source file lines;
+- `VET006`: maximum function body lines;
+- `VET007`: function docstring policy;
+- `VET008`: indentation type;
+- `VET009`: indentation width.
 
 The first implementation uses a lightweight lexical analyzer. The parser
 boundary is isolated so it can be replaced with SwiftSyntax later without

@@ -1,0 +1,1 @@
+spec/conformance/function-docstring/swift/forbidden.swift:2:6: VET007: documented must not have a docstring

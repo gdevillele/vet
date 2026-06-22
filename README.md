@@ -70,6 +70,15 @@ rules:
     required: true
     min-length: 40
     max-length: 400
+  max-source-file-lines:
+    max: 300
+  max-function-body-lines:
+    max: 20
+  function-docstring:
+    policy: optional
+  indent:
+    type: language-default
+    width: 0
 ```
 
 Run with:
@@ -79,6 +88,19 @@ go run ./implementations/go/cmd/vet --config .vet.yaml ./...
 ```
 
 Explicit CLI flags override values from the config file.
+
+Additional strictness flags:
+
+```sh
+--max-source-file-lines 300
+--max-function-body-lines 20
+--function-docstring-policy optional
+--indent-type language-default
+--indent-width 0
+```
+
+The docstring policy accepts `forbidden`, `optional`, or `mandatory`.
+Indent type accepts `tabs`, `spaces`, or `language-default`.
 
 ## Architecture Decision
 

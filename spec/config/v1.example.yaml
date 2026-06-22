@@ -7,3 +7,12 @@ rules:
     required: true
     min-length: 40
     max-length: 400
+  max-source-file-lines:
+    max: 300
+  max-function-body-lines:
+    max: 20
+  function-docstring:
+    policy: optional
+  indent:
+    type: language-default
+    width: 0

@@ -1,0 +1,1 @@
+spec/conformance/function-body-lines/go/invalid.go:3:6: VET006: rejected body has 2 lines; maximum allowed is 1

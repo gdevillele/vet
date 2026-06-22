@@ -1,0 +1,1 @@
+spec/conformance/function-body-lines/swift/invalid.swift:1:6: VET006: rejected body has 2 lines; maximum allowed is 1

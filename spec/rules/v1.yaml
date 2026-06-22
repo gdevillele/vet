@@ -57,3 +57,72 @@ rules:
     notes:
       - A value of 0 disables the upper bound.
       - Header length is counted after stripping comment delimiters and surrounding whitespace.
+  VET005:
+    name: max-source-file-lines
+    default_severity: error
+    default_config:
+      max: 0
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Source files must not exceed the configured number of physical lines.
+    notes:
+      - A value of 0 disables the rule.
+      - Line counts are based on physical source lines.
+  VET006:
+    name: max-function-body-lines
+    default_severity: error
+    default_config:
+      max: 0
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Function bodies must not exceed the configured number of physical lines.
+    notes:
+      - A value of 0 disables the rule.
+      - Body line counts exclude the opening and closing brace lines.
+  VET007:
+    name: function-docstring-policy
+    default_severity: error
+    default_config:
+      policy: optional
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Function docstrings must follow the configured policy.
+    notes:
+      - Supported policies are forbidden, optional, and mandatory.
+      - The rule applies to named function declarations, not function literals.
+  VET008:
+    name: indent-type
+    default_severity: error
+    default_config:
+      type: language-default
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Source indentation must use the configured indentation type.
+    notes:
+      - Supported types are tabs, spaces, and language-default.
+      - language-default means tabs for Go, spaces for Swift and Rust.
+      - Blank lines are ignored.
+      - Only leading indentation is checked.
+  VET009:
+    name: indent-width
+    default_severity: error
+    default_config:
+      width: 0
+    applies_to:
+      - go
+      - rust
+      - swift
+    summary: Space indentation must be a multiple of the configured width.
+    notes:
+      - A value of 0 disables the rule.
+      - This rule only applies when the effective indentation type is spaces.
+      - Blank lines are ignored.
+      - Only leading indentation is checked.

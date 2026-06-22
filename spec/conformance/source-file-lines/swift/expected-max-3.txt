@@ -1,0 +1,1 @@
+spec/conformance/source-file-lines/swift/invalid.swift:1:1: VET005: source file has 4 lines; maximum allowed is 3

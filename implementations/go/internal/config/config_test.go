@@ -17,6 +17,15 @@ rules:
     required: true
     min-length: 10
     max-length: 80
+  max-source-file-lines:
+    max: 100
+  max-function-body-lines:
+    max: 12
+  function-docstring:
+    policy: mandatory
+  indent:
+    type: spaces
+    width: 4
 `)
 
 	if err := os.WriteFile(path, data, 0o600); err != nil {
@@ -46,6 +55,21 @@ rules:
 	if cfg.SourceFileHeader.MaxLength != 80 {
 		t.Fatalf("expected max header length 80, got %d", cfg.SourceFileHeader.MaxLength)
 	}
+	if cfg.SourceFileLines.Max != 100 {
+		t.Fatalf("expected max source file lines 100, got %d", cfg.SourceFileLines.Max)
+	}
+	if cfg.FunctionBodyLines.Max != 12 {
+		t.Fatalf("expected max function body lines 12, got %d", cfg.FunctionBodyLines.Max)
+	}
+	if cfg.FunctionDocstring.Policy != FunctionDocstringMandatory {
+		t.Fatalf("expected mandatory docstring policy, got %q", cfg.FunctionDocstring.Policy)
+	}
+	if cfg.Indent.Type != IndentSpaces {
+		t.Fatalf("expected spaces indent type, got %q", cfg.Indent.Type)
+	}
+	if cfg.Indent.Width != 4 {
+		t.Fatalf("expected indent width 4, got %d", cfg.Indent.Width)
+	}
 }
 
 func TestLoadFileRejectsUnknownFields(t *testing.T) {
@@ -72,5 +96,44 @@ func TestValidateRejectsInvalidHeaderBounds(t *testing.T) {
 
 	if err := Validate(cfg); err == nil {
 		t.Fatalf("expected Validate to reject invalid header bounds")
+	}
+}
+
+func TestValidateRejectsInvalidLineBounds(t *testing.T) {
+	cfg := Default()
+	cfg.SourceFileLines.Max = -1
+
+	if err := Validate(cfg); err == nil {
+		t.Fatalf("expected Validate to reject invalid source file line bound")
+	}
+
+	cfg = Default()
+	cfg.FunctionBodyLines.Max = -1
+	if err := Validate(cfg); err == nil {
+		t.Fatalf("expected Validate to reject invalid function body line bound")
+	}
+}
+
+func TestValidateRejectsInvalidFunctionDocstringPolicy(t *testing.T) {
+	cfg := Default()
+	cfg.FunctionDocstring.Policy = "sometimes"
+
+	if err := Validate(cfg); err == nil {
+		t.Fatalf("expected Validate to reject invalid docstring policy")
+	}
+}
+
+func TestValidateRejectsInvalidIndentConfig(t *testing.T) {
+	cfg := Default()
+	cfg.Indent.Type = "mixed"
+
+	if err := Validate(cfg); err == nil {
+		t.Fatalf("expected Validate to reject invalid indent type")
+	}
+
+	cfg = Default()
+	cfg.Indent.Width = -1
+	if err := Validate(cfg); err == nil {
+		t.Fatalf("expected Validate to reject invalid indent width")
 	}
 }

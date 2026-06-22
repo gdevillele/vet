@@ -77,3 +77,17 @@ counted as parameters for this rule.
 `VET003` and `VET004` enforce minimum and maximum header lengths. Header length
 is counted after stripping comment delimiters and surrounding whitespace. A
 value of `0` disables the corresponding length bound.
+
+`VET005` enforces a maximum number of physical lines in a source file.
+
+`VET006` enforces a maximum number of physical lines inside a function body,
+excluding the opening and closing brace lines.
+
+`VET007` enforces function docstring policy. Supported policies are
+`forbidden`, `optional`, and `mandatory`.
+
+`VET008` enforces indentation type. Supported types are `tabs`, `spaces`, and
+`language-default`; the language default is tabs for Go and spaces for Swift.
+
+`VET009` enforces space indentation width when the effective indentation type is
+spaces. A width of `0` disables the width check.

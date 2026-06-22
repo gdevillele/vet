@@ -111,4 +111,113 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics.count, 1)
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFileHeaderRequired)
     }
+
+    func testReportsSourceFileAboveMaximumLines() {
+        var config = VetConfig.default()
+        config.sourceFileLines.max = 2
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            let one = 1
+            let two = 2
+            let three = 3
+            """
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFileLines)
+    }
+
+    func testReportsFunctionBodyAboveMaximumLines() {
+        var config = VetConfig.default()
+        config.functionBodyLines.max = 1
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            func rejected() {
+                print("one")
+                print("two")
+            }
+            """
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionBodyLines)
+    }
+
+    func testReportsMissingMandatoryFunctionDocstring() {
+        var config = VetConfig.default()
+        config.functionDocstring.policy = .mandatory
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            func missing() {}
+
+            /// documented has a docstring.
+            func documented() {}
+            """
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionDocstring)
+    }
+
+    func testReportsForbiddenFunctionDocstring() {
+        var config = VetConfig.default()
+        config.functionDocstring.policy = .forbidden
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            /// documented has a docstring.
+            func documented() {}
+            """
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionDocstring)
+    }
+
+    func testReportsTabsWhenSpacesIndentRequired() {
+        var config = VetConfig.default()
+        config.indent.type = .spaces
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func rejected() {\n\tprint(\"one\")\n}\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentType)
+    }
+
+    func testReportsSpacesWhenTabsIndentRequired() {
+        var config = VetConfig.default()
+        config.indent.type = .tabs
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func rejected() {\n  print(\"one\")\n}\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentType)
+    }
+
+    func testReportsIndentWidthViolation() {
+        var config = VetConfig.default()
+        config.indent.type = .spaces
+        config.indent.width = 4
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func rejected() {\n  print(\"one\")\n}\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentWidth)
+    }
 }

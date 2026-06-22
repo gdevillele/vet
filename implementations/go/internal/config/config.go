@@ -13,6 +13,10 @@ const DefaultMaxFunctionParameters = 1
 type Config struct {
 	MaxFunctionParameters MaxFunctionParametersRule
 	SourceFileHeader      SourceFileHeaderRule
+	SourceFileLines       SourceFileLinesRule
+	FunctionBodyLines     FunctionBodyLinesRule
+	FunctionDocstring     FunctionDocstringRule
+	Indent                IndentRule
 }
 
 type MaxFunctionParametersRule struct {
@@ -24,6 +28,39 @@ type SourceFileHeaderRule struct {
 	Required  bool
 	MinLength int
 	MaxLength int
+}
+
+type SourceFileLinesRule struct {
+	Max int
+}
+
+type FunctionBodyLinesRule struct {
+	Max int
+}
+
+type FunctionDocstringPolicy string
+
+const (
+	FunctionDocstringForbidden FunctionDocstringPolicy = "forbidden"
+	FunctionDocstringOptional  FunctionDocstringPolicy = "optional"
+	FunctionDocstringMandatory FunctionDocstringPolicy = "mandatory"
+)
+
+type FunctionDocstringRule struct {
+	Policy FunctionDocstringPolicy
+}
+
+type IndentType string
+
+const (
+	IndentTabs            IndentType = "tabs"
+	IndentSpaces          IndentType = "spaces"
+	IndentLanguageDefault IndentType = "language-default"
+)
+
+type IndentRule struct {
+	Type  IndentType
+	Width int
 }
 
 type LoadFileRequest struct {
@@ -39,6 +76,10 @@ type fileConfig struct {
 type rulesFile struct {
 	MaxFunctionParameters *maxFunctionParametersFile `yaml:"max-function-parameters"`
 	SourceFileHeader      *sourceFileHeaderFile      `yaml:"source-file-header"`
+	SourceFileLines       *sourceFileLinesFile       `yaml:"max-source-file-lines"`
+	FunctionBodyLines     *functionBodyLinesFile     `yaml:"max-function-body-lines"`
+	FunctionDocstring     *functionDocstringFile     `yaml:"function-docstring"`
+	Indent                *indentFile                `yaml:"indent"`
 }
 
 type maxFunctionParametersFile struct {
@@ -52,6 +93,23 @@ type sourceFileHeaderFile struct {
 	MaxLength *int  `yaml:"max-length"`
 }
 
+type sourceFileLinesFile struct {
+	Max *int `yaml:"max"`
+}
+
+type functionBodyLinesFile struct {
+	Max *int `yaml:"max"`
+}
+
+type functionDocstringFile struct {
+	Policy *FunctionDocstringPolicy `yaml:"policy"`
+}
+
+type indentFile struct {
+	Type  *IndentType `yaml:"type"`
+	Width *int        `yaml:"width"`
+}
+
 func Default() Config {
 	return Config{
 		MaxFunctionParameters: MaxFunctionParametersRule{
@@ -62,6 +120,19 @@ func Default() Config {
 			Required:  false,
 			MinLength: 0,
 			MaxLength: 0,
+		},
+		SourceFileLines: SourceFileLinesRule{
+			Max: 0,
+		},
+		FunctionBodyLines: FunctionBodyLinesRule{
+			Max: 0,
+		},
+		FunctionDocstring: FunctionDocstringRule{
+			Policy: FunctionDocstringOptional,
+		},
+		Indent: IndentRule{
+			Type:  IndentLanguageDefault,
+			Width: 0,
 		},
 	}
 }
@@ -107,6 +178,37 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 		}
 	}
 
+	if document.Rules.SourceFileLines != nil {
+		rule := document.Rules.SourceFileLines
+		if rule.Max != nil {
+			result.SourceFileLines.Max = *rule.Max
+		}
+	}
+
+	if document.Rules.FunctionBodyLines != nil {
+		rule := document.Rules.FunctionBodyLines
+		if rule.Max != nil {
+			result.FunctionBodyLines.Max = *rule.Max
+		}
+	}
+
+	if document.Rules.FunctionDocstring != nil {
+		rule := document.Rules.FunctionDocstring
+		if rule.Policy != nil {
+			result.FunctionDocstring.Policy = *rule.Policy
+		}
+	}
+
+	if document.Rules.Indent != nil {
+		rule := document.Rules.Indent
+		if rule.Type != nil {
+			result.Indent.Type = *rule.Type
+		}
+		if rule.Width != nil {
+			result.Indent.Width = *rule.Width
+		}
+	}
+
 	if err := Validate(result); err != nil {
 		return result, err
 	}
@@ -126,6 +228,25 @@ func Validate(cfg Config) error {
 	}
 	if cfg.SourceFileHeader.MinLength > 0 && cfg.SourceFileHeader.MaxLength > 0 && cfg.SourceFileHeader.MaxLength < cfg.SourceFileHeader.MinLength {
 		return fmt.Errorf("source-file-header.max-length must be greater than or equal to source-file-header.min-length")
+	}
+	if cfg.SourceFileLines.Max < 0 {
+		return fmt.Errorf("max-source-file-lines.max must be zero or greater")
+	}
+	if cfg.FunctionBodyLines.Max < 0 {
+		return fmt.Errorf("max-function-body-lines.max must be zero or greater")
+	}
+	switch cfg.FunctionDocstring.Policy {
+	case FunctionDocstringForbidden, FunctionDocstringOptional, FunctionDocstringMandatory:
+	default:
+		return fmt.Errorf("function-docstring.policy must be forbidden, optional, or mandatory")
+	}
+	switch cfg.Indent.Type {
+	case IndentTabs, IndentSpaces, IndentLanguageDefault:
+	default:
+		return fmt.Errorf("indent.type must be tabs, spaces, or language-default")
+	}
+	if cfg.Indent.Width < 0 {
+		return fmt.Errorf("indent.width must be zero or greater")
 	}
 
 	return nil

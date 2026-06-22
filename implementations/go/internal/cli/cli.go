@@ -60,6 +60,11 @@ func Run(invocation Invocation) int {
 	requireFileHeader := flags.Bool("require-file-header", false, "require every source file to have a leading header comment")
 	minFileHeaderLength := flags.Int("min-file-header-length", 0, "minimum header length in characters; 0 disables the bound")
 	maxFileHeaderLength := flags.Int("max-file-header-length", 0, "maximum header length in characters; 0 disables the bound")
+	maxSourceFileLines := flags.Int("max-source-file-lines", 0, "maximum source file lines; 0 disables the bound")
+	maxFunctionBodyLines := flags.Int("max-function-body-lines", 0, "maximum function body lines; 0 disables the bound")
+	functionDocstringPolicy := flags.String("function-docstring-policy", string(config.FunctionDocstringOptional), "function docstring policy: forbidden, optional, or mandatory")
+	indentType := flags.String("indent-type", string(config.IndentLanguageDefault), "indent type: tabs, spaces, or language-default")
+	indentWidth := flags.Int("indent-width", 0, "space indentation width; 0 disables the width check")
 	version := flags.Bool("version", false, "print version")
 
 	if err := flags.Parse(invocation.Args); err != nil {
@@ -107,6 +112,21 @@ func Run(invocation Invocation) int {
 	}
 	if visited["max-file-header-length"] {
 		cfg.SourceFileHeader.MaxLength = *maxFileHeaderLength
+	}
+	if visited["max-source-file-lines"] {
+		cfg.SourceFileLines.Max = *maxSourceFileLines
+	}
+	if visited["max-function-body-lines"] {
+		cfg.FunctionBodyLines.Max = *maxFunctionBodyLines
+	}
+	if visited["function-docstring-policy"] {
+		cfg.FunctionDocstring.Policy = config.FunctionDocstringPolicy(*functionDocstringPolicy)
+	}
+	if visited["indent-type"] {
+		cfg.Indent.Type = config.IndentType(*indentType)
+	}
+	if visited["indent-width"] {
+		cfg.Indent.Width = *indentWidth
 	}
 
 	if err := config.Validate(cfg); err != nil {

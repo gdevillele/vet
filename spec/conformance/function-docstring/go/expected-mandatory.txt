@@ -1,0 +1,1 @@
+spec/conformance/function-docstring/go/mandatory.go:3:6: VET007: missing must have a docstring

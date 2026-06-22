@@ -152,6 +152,54 @@ final class CLITests: XCTestCase {
         XCTAssertTrue(stderr.contains("use -c or --config"))
     }
 
+    func testRunReportsNewRuleDiagnostics() throws {
+        let directory = temporaryDirectory()
+        let file = directory.appendingPathComponent("sample.swift")
+        try """
+        func missing() {
+            print("one")
+            print("two")
+        }
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: [
+                "--max-source-file-lines", "2",
+                "--max-function-body-lines", "1",
+                "--function-docstring-policy", "mandatory",
+                directory.path,
+            ],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertTrue(stdout.contains("VET005"))
+        XCTAssertTrue(stdout.contains("VET006"))
+        XCTAssertTrue(stdout.contains("VET007"))
+        XCTAssertEqual(stderr, "")
+    }
+
+    func testRunReportsIndentDiagnostics() throws {
+        let directory = temporaryDirectory()
+        let file = directory.appendingPathComponent("sample.swift")
+        try "func rejected() {\n  print(\"one\")\n}\n".write(to: file, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--indent-type", "spaces", "--indent-width", "4", directory.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertTrue(stdout.contains("VET009"))
+        XCTAssertEqual(stderr, "")
+    }
+
     private func temporaryDirectory() -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

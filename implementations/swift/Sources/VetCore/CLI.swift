@@ -21,6 +21,11 @@ struct CLIOptions {
     var requireFileHeader: Bool?
     var minFileHeaderLength: Int?
     var maxFileHeaderLength: Int?
+    var maxSourceFileLines: Int?
+    var maxFunctionBodyLines: Int?
+    var functionDocstringPolicy: FunctionDocstringPolicy?
+    var indentType: IndentType?
+    var indentWidth: Int?
     var version = false
     var paths: [String] = []
 }
@@ -145,6 +150,25 @@ public enum CLI {
             case "--max-file-header-length", "-max-file-header-length":
                 cursor += 1
                 options.maxFileHeaderLength = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--max-source-file-lines", "-max-source-file-lines":
+                cursor += 1
+                options.maxSourceFileLines = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--max-function-body-lines", "-max-function-body-lines":
+                cursor += 1
+                options.maxFunctionBodyLines = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--function-docstring-policy", "-function-docstring-policy":
+                cursor += 1
+                options.functionDocstringPolicy = try docstringPolicy(ArgumentValueRequest(
+                    arguments: arguments,
+                    offset: cursor,
+                    flag: argument
+                ))
+            case "--indent-type", "-indent-type":
+                cursor += 1
+                options.indentType = try indentType(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--indent-width", "-indent-width":
+                cursor += 1
+                options.indentWidth = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
             case "--version", "-version":
                 options.version = true
             default:
@@ -176,6 +200,24 @@ public enum CLI {
         return value
     }
 
+    private static func docstringPolicy(_ request: ArgumentValueRequest) throws -> FunctionDocstringPolicy {
+        let raw = try value(request)
+        guard let policy = FunctionDocstringPolicy(rawValue: raw) else {
+            throw CLIError.message("\(request.flag) must be forbidden, optional, or mandatory")
+        }
+
+        return policy
+    }
+
+    private static func indentType(_ request: ArgumentValueRequest) throws -> IndentType {
+        let raw = try value(request)
+        guard let type = IndentType(rawValue: raw) else {
+            throw CLIError.message("\(request.flag) must be tabs, spaces, or language-default")
+        }
+
+        return type
+    }
+
     private static func applyOptions(_ request: OptionsApplyRequest) -> VetConfig {
         var config = request.config
         if let max = request.options.maxFunctionParameters {
@@ -189,6 +231,21 @@ public enum CLI {
         }
         if let maxLength = request.options.maxFileHeaderLength {
             config.sourceFileHeader.maxLength = maxLength
+        }
+        if let max = request.options.maxSourceFileLines {
+            config.sourceFileLines.max = max
+        }
+        if let max = request.options.maxFunctionBodyLines {
+            config.functionBodyLines.max = max
+        }
+        if let policy = request.options.functionDocstringPolicy {
+            config.functionDocstring.policy = policy
+        }
+        if let type = request.options.indentType {
+            config.indent.type = type
+        }
+        if let width = request.options.indentWidth {
+            config.indent.width = width
         }
         return config
     }

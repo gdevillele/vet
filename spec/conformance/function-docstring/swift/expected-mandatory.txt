@@ -1,0 +1,1 @@
+spec/conformance/function-docstring/swift/mandatory.swift:1:6: VET007: missing must have a docstring
