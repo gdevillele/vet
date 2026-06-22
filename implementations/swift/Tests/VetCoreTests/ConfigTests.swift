@@ -25,6 +25,16 @@ final class ConfigTests: XCTestCase {
           indent:
             type: spaces
             width: 4
+          casing:
+            enabled: true
+            functions: camelCase
+            variables: snake_case
+            types: UpperCamelCase
+            constants: SNAKE_CASE_FULL_CAPS
+            ignore-names:
+              - generated_name
+            ignore-patterns:
+              - "^Test[A-Z]"
         """
 
         try yaml.write(to: configPath, atomically: true, encoding: .utf8)
@@ -44,6 +54,13 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(config.functionDocstring.policy, .mandatory)
         XCTAssertEqual(config.indent.type, .spaces)
         XCTAssertEqual(config.indent.width, 4)
+        XCTAssertTrue(config.casing.enabled)
+        XCTAssertEqual(config.casing.functions, .camelCase)
+        XCTAssertEqual(config.casing.variables, .snakeCase)
+        XCTAssertEqual(config.casing.types, .upperCamelCase)
+        XCTAssertEqual(config.casing.constants, .snakeUpperCase)
+        XCTAssertEqual(config.casing.ignoreNames, ["generated_name"])
+        XCTAssertEqual(config.casing.ignorePatterns, ["^Test[A-Z]"])
     }
 
     func testValidateRejectsInvalidHeaderBounds() {
@@ -67,6 +84,13 @@ final class ConfigTests: XCTestCase {
     func testValidateRejectsInvalidIndentWidth() {
         var config = VetConfig.default()
         config.indent.width = -1
+
+        XCTAssertThrowsError(try ConfigLoader.validate(config))
+    }
+
+    func testValidateRejectsInvalidCasingIgnorePattern() {
+        var config = VetConfig.default()
+        config.casing.ignorePatterns = ["["]
 
         XCTAssertThrowsError(try ConfigLoader.validate(config))
     }

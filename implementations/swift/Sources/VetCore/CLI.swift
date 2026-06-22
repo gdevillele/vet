@@ -26,6 +26,11 @@ struct CLIOptions {
     var functionDocstringPolicy: FunctionDocstringPolicy?
     var indentType: IndentType?
     var indentWidth: Int?
+    var casingEnabled: Bool?
+    var functionCasing: CasingStyle?
+    var variableCasing: CasingStyle?
+    var typeCasing: CasingStyle?
+    var constantCasing: CasingStyle?
     var version = false
     var paths: [String] = []
 }
@@ -169,6 +174,20 @@ public enum CLI {
             case "--indent-width", "-indent-width":
                 cursor += 1
                 options.indentWidth = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--casing", "-casing":
+                options.casingEnabled = true
+            case "--function-casing", "-function-casing":
+                cursor += 1
+                options.functionCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--variable-casing", "-variable-casing":
+                cursor += 1
+                options.variableCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--type-casing", "-type-casing":
+                cursor += 1
+                options.typeCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--constant-casing", "-constant-casing":
+                cursor += 1
+                options.constantCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
             case "--version", "-version":
                 options.version = true
             default:
@@ -218,6 +237,15 @@ public enum CLI {
         return type
     }
 
+    private static func casingStyle(_ request: ArgumentValueRequest) throws -> CasingStyle {
+        let raw = try value(request)
+        guard let style = CasingStyle(rawValue: raw) else {
+            throw CLIError.message("\(request.flag) must be off, language-default, camelCase, UpperCamelCase, snake_case, or SNAKE_CASE_FULL_CAPS")
+        }
+
+        return style
+    }
+
     private static func applyOptions(_ request: OptionsApplyRequest) -> VetConfig {
         var config = request.config
         if let max = request.options.maxFunctionParameters {
@@ -246,6 +274,25 @@ public enum CLI {
         }
         if let width = request.options.indentWidth {
             config.indent.width = width
+        }
+        if let enabled = request.options.casingEnabled {
+            config.casing.enabled = enabled
+        }
+        if let style = request.options.functionCasing {
+            config.casing.enabled = true
+            config.casing.functions = style
+        }
+        if let style = request.options.variableCasing {
+            config.casing.enabled = true
+            config.casing.variables = style
+        }
+        if let style = request.options.typeCasing {
+            config.casing.enabled = true
+            config.casing.types = style
+        }
+        if let style = request.options.constantCasing {
+            config.casing.enabled = true
+            config.casing.constants = style
         }
         return config
     }

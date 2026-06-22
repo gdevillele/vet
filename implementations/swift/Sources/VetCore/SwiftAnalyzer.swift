@@ -10,6 +10,10 @@ public enum RuleID {
     public static let functionDocstring = "VET007"
     public static let indentType = "VET008"
     public static let indentWidth = "VET009"
+    public static let functionCasing = "VET010"
+    public static let variableCasing = "VET011"
+    public static let typeCasing = "VET012"
+    public static let constantCasing = "VET013"
 }
 
 public struct AnalyzeFileRequest {
@@ -45,6 +49,11 @@ public struct SwiftAnalyzer {
             path: request.path,
             source: request.source,
             rule: config.sourceFileHeader
+        )))
+        diagnostics.append(contentsOf: CasingAnalyzer.analyze(CasingAnalyzeRequest(
+            path: request.path,
+            source: request.source,
+            rule: config.casing
         )))
 
         diagnostics.append(contentsOf: FunctionParameterAnalyzer.analyze(FunctionAnalyzeRequest(

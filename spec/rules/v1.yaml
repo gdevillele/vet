@@ -184,3 +184,89 @@ rules:
       - This rule only applies when the effective indentation type is spaces.
       - Blank lines are ignored.
       - Only leading indentation is checked.
+  VET010:
+    name: function-casing
+    default_severity: error
+    default_config:
+      enabled: false
+      style: language-default
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+        notes:
+          - Go export visibility is determined by identifier casing; non-default styles can intentionally reject exported or unexported API names.
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
+    summary: Function and method names must use the configured casing style.
+    notes:
+      - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, and camelCase for Swift functions.
+  VET011:
+    name: variable-casing
+    default_severity: error
+    default_config:
+      enabled: false
+      style: language-default
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+        notes:
+          - The blank identifier is ignored.
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
+    summary: Variable names must use the configured casing style.
+    notes:
+      - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, and camelCase for Swift variables.
+  VET012:
+    name: type-casing
+    default_severity: error
+    default_config:
+      enabled: false
+      style: language-default
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
+    summary: Type names must use the configured casing style.
+    notes:
+      - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, and UpperCamelCase for Swift types.
+  VET013:
+    name: constant-casing
+    default_severity: error
+    default_config:
+      enabled: false
+      style: language-default
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+        notes:
+          - Go constants are legal in SNAKE_CASE_FULL_CAPS, but Go's idiomatic default is MixedCaps rather than screaming snake case.
+      rust:
+        status: compatible
+        implementation: planned
+      swift:
+        status: compatible
+        implementation: implemented
+    summary: Constant names must use the configured casing style.
+    notes:
+      - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, and camelCase for Swift constants.

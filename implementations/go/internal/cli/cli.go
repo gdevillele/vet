@@ -65,6 +65,11 @@ func Run(invocation Invocation) int {
 	functionDocstringPolicy := flags.String("function-docstring-policy", string(config.FunctionDocstringOptional), "function docstring policy: forbidden, optional, or mandatory")
 	indentType := flags.String("indent-type", string(config.IndentLanguageDefault), "indent type: tabs, spaces, or language-default")
 	indentWidth := flags.Int("indent-width", 0, "space indentation width; 0 disables the width check")
+	casingEnabled := flags.Bool("casing", false, "enable identifier casing checks")
+	functionCasing := flags.String("function-casing", string(config.CasingLanguageDefault), "function casing style")
+	variableCasing := flags.String("variable-casing", string(config.CasingLanguageDefault), "variable casing style")
+	typeCasing := flags.String("type-casing", string(config.CasingLanguageDefault), "type casing style")
+	constantCasing := flags.String("constant-casing", string(config.CasingLanguageDefault), "constant casing style")
 	version := flags.Bool("version", false, "print version")
 
 	if err := flags.Parse(invocation.Args); err != nil {
@@ -127,6 +132,25 @@ func Run(invocation Invocation) int {
 	}
 	if visited["indent-width"] {
 		cfg.Indent.Width = *indentWidth
+	}
+	if visited["casing"] {
+		cfg.Casing.Enabled = *casingEnabled
+	}
+	if visited["function-casing"] {
+		cfg.Casing.Enabled = true
+		cfg.Casing.Functions = config.CasingStyle(*functionCasing)
+	}
+	if visited["variable-casing"] {
+		cfg.Casing.Enabled = true
+		cfg.Casing.Variables = config.CasingStyle(*variableCasing)
+	}
+	if visited["type-casing"] {
+		cfg.Casing.Enabled = true
+		cfg.Casing.Types = config.CasingStyle(*typeCasing)
+	}
+	if visited["constant-casing"] {
+		cfg.Casing.Enabled = true
+		cfg.Casing.Constants = config.CasingStyle(*constantCasing)
 	}
 
 	if err := config.Validate(cfg); err != nil {

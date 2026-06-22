@@ -352,3 +352,96 @@ func TestAnalyzeFileIgnoresRawStringIndentation(t *testing.T) {
 		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
 	}
 }
+
+func TestAnalyzeFileReportsCasingDiagnostics(t *testing.T) {
+	cfg := config.Default()
+	cfg.Casing.Enabled = true
+	cfg.Casing.Functions = config.CasingCamelCase
+	cfg.Casing.Variables = config.CasingCamelCase
+	cfg.Casing.Types = config.CasingUpperCamelCase
+	cfg.Casing.Constants = config.CasingSnakeUpperCase
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path: "sample.go",
+		Source: []byte(`package sample
+
+const max_connections = 1
+
+type user_record struct{}
+
+var global_value = 1
+
+func accepted(bad_param int) {
+	Bad_local := bad_param
+}
+
+func Rejected() {}
+`),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	seen := map[string]bool{}
+	for _, item := range diagnostics {
+		seen[item.RuleID] = true
+	}
+
+	for _, rule := range []string{RuleConstantCasing, RuleTypeCasing, RuleVariableCasing, RuleFunctionCasing} {
+		if !seen[rule] {
+			t.Fatalf("expected %s diagnostic in %#v", rule, diagnostics)
+		}
+	}
+}
+
+func TestAnalyzeFileAcceptsGoLanguageDefaultCasing(t *testing.T) {
+	cfg := config.Default()
+	cfg.Casing.Enabled = true
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path: "sample.go",
+		Source: []byte(`package sample
+
+const MaxConnections = 1
+const maxConnections = 2
+
+type UserRecord struct{}
+type userRecord struct{}
+
+var RequestID = 1
+var requestID = 2
+
+func ServeHTTP() {}
+func serveHTTP() {}
+`),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
+	}
+}
+
+func TestAnalyzeFileHonorsCasingIgnores(t *testing.T) {
+	cfg := config.Default()
+	cfg.Casing.Enabled = true
+	cfg.Casing.Functions = config.CasingCamelCase
+	cfg.Casing.IgnorePatterns = []string{"^Test[A-Z]"}
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path: "sample.go",
+		Source: []byte(`package sample
+
+func TestAccepted() {}
+`),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
+	}
+}

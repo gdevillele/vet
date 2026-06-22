@@ -342,3 +342,35 @@ func TestRunReportsIndentDiagnostics(t *testing.T) {
 		t.Fatalf("expected VET009 diagnostic, got %q", stdout.String())
 	}
 }
+
+func TestRunReportsCasingDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "sample.go")
+	source := []byte(`package sample
+
+func Rejected() {}
+`)
+
+	if err := os.WriteFile(file, source, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args: []string{
+			"--function-casing", "camelCase",
+			dir,
+		},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "VET010") {
+		t.Fatalf("expected VET010 diagnostic, got %q", stdout.String())
+	}
+}

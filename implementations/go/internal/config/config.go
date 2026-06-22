@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -17,6 +18,7 @@ type Config struct {
 	FunctionBodyLines     FunctionBodyLinesRule
 	FunctionDocstring     FunctionDocstringRule
 	Indent                IndentRule
+	Casing                CasingRule
 }
 
 type MaxFunctionParametersRule struct {
@@ -63,6 +65,27 @@ type IndentRule struct {
 	Width int
 }
 
+type CasingStyle string
+
+const (
+	CasingOff             CasingStyle = "off"
+	CasingLanguageDefault CasingStyle = "language-default"
+	CasingCamelCase       CasingStyle = "camelCase"
+	CasingUpperCamelCase  CasingStyle = "UpperCamelCase"
+	CasingSnakeCase       CasingStyle = "snake_case"
+	CasingSnakeUpperCase  CasingStyle = "SNAKE_CASE_FULL_CAPS"
+)
+
+type CasingRule struct {
+	Enabled        bool
+	Functions      CasingStyle
+	Variables      CasingStyle
+	Types          CasingStyle
+	Constants      CasingStyle
+	IgnoreNames    []string
+	IgnorePatterns []string
+}
+
 type LoadFileRequest struct {
 	Path string
 	Base Config
@@ -80,6 +103,7 @@ type rulesFile struct {
 	FunctionBodyLines     *functionBodyLinesFile     `yaml:"max-function-body-lines"`
 	FunctionDocstring     *functionDocstringFile     `yaml:"function-docstring"`
 	Indent                *indentFile                `yaml:"indent"`
+	Casing                *casingFile                `yaml:"casing"`
 }
 
 type maxFunctionParametersFile struct {
@@ -110,6 +134,16 @@ type indentFile struct {
 	Width *int        `yaml:"width"`
 }
 
+type casingFile struct {
+	Enabled        *bool        `yaml:"enabled"`
+	Functions      *CasingStyle `yaml:"functions"`
+	Variables      *CasingStyle `yaml:"variables"`
+	Types          *CasingStyle `yaml:"types"`
+	Constants      *CasingStyle `yaml:"constants"`
+	IgnoreNames    []string     `yaml:"ignore-names"`
+	IgnorePatterns []string     `yaml:"ignore-patterns"`
+}
+
 func Default() Config {
 	return Config{
 		MaxFunctionParameters: MaxFunctionParametersRule{
@@ -133,6 +167,13 @@ func Default() Config {
 		Indent: IndentRule{
 			Type:  IndentLanguageDefault,
 			Width: 0,
+		},
+		Casing: CasingRule{
+			Enabled:   false,
+			Functions: CasingLanguageDefault,
+			Variables: CasingLanguageDefault,
+			Types:     CasingLanguageDefault,
+			Constants: CasingLanguageDefault,
 		},
 	}
 }
@@ -209,6 +250,31 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 		}
 	}
 
+	if document.Rules.Casing != nil {
+		rule := document.Rules.Casing
+		if rule.Enabled != nil {
+			result.Casing.Enabled = *rule.Enabled
+		}
+		if rule.Functions != nil {
+			result.Casing.Functions = *rule.Functions
+		}
+		if rule.Variables != nil {
+			result.Casing.Variables = *rule.Variables
+		}
+		if rule.Types != nil {
+			result.Casing.Types = *rule.Types
+		}
+		if rule.Constants != nil {
+			result.Casing.Constants = *rule.Constants
+		}
+		if rule.IgnoreNames != nil {
+			result.Casing.IgnoreNames = rule.IgnoreNames
+		}
+		if rule.IgnorePatterns != nil {
+			result.Casing.IgnorePatterns = rule.IgnorePatterns
+		}
+	}
+
 	if err := Validate(result); err != nil {
 		return result, err
 	}
@@ -248,6 +314,32 @@ func Validate(cfg Config) error {
 	if cfg.Indent.Width < 0 {
 		return fmt.Errorf("indent.width must be zero or greater")
 	}
+	if err := validateCasingStyle("casing.functions", cfg.Casing.Functions); err != nil {
+		return err
+	}
+	if err := validateCasingStyle("casing.variables", cfg.Casing.Variables); err != nil {
+		return err
+	}
+	if err := validateCasingStyle("casing.types", cfg.Casing.Types); err != nil {
+		return err
+	}
+	if err := validateCasingStyle("casing.constants", cfg.Casing.Constants); err != nil {
+		return err
+	}
+	for _, pattern := range cfg.Casing.IgnorePatterns {
+		if _, err := regexp.Compile(pattern); err != nil {
+			return fmt.Errorf("casing.ignore-patterns contains invalid regex %q: %w", pattern, err)
+		}
+	}
 
 	return nil
+}
+
+func validateCasingStyle(field string, style CasingStyle) error {
+	switch style {
+	case CasingOff, CasingLanguageDefault, CasingCamelCase, CasingUpperCamelCase, CasingSnakeCase, CasingSnakeUpperCase:
+		return nil
+	default:
+		return fmt.Errorf("%s must be off, language-default, camelCase, UpperCamelCase, snake_case, or SNAKE_CASE_FULL_CAPS", field)
+	}
 }

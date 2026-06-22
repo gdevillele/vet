@@ -220,4 +220,74 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics.count, 1)
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentWidth)
     }
+
+    func testReportsCasingDiagnostics() {
+        var config = VetConfig.default()
+        config.casing.enabled = true
+        config.casing.functions = .camelCase
+        config.casing.variables = .camelCase
+        config.casing.types = .upperCamelCase
+        config.casing.constants = .snakeUpperCase
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            let max_connections = 1
+            var global_value = 1
+            struct user_record {}
+            func Rejected() {}
+            """
+        ))
+
+        let ruleIDs = Set(diagnostics.map(\.ruleID))
+        XCTAssertTrue(ruleIDs.contains(RuleID.constantCasing))
+        XCTAssertTrue(ruleIDs.contains(RuleID.variableCasing))
+        XCTAssertTrue(ruleIDs.contains(RuleID.typeCasing))
+        XCTAssertTrue(ruleIDs.contains(RuleID.functionCasing))
+    }
+
+    func testAcceptsSwiftLanguageDefaultCasing() {
+        var config = VetConfig.default()
+        config.casing.enabled = true
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            let maxConnections = 1
+            var requestID = 1
+            struct UserRecord {}
+            func serveHTTP() {}
+            """
+        ))
+
+        XCTAssertEqual(diagnostics.count, 0)
+    }
+
+    func testHonorsCasingIgnores() {
+        var config = VetConfig.default()
+        config.casing.enabled = true
+        config.casing.functions = .camelCase
+        config.casing.ignorePatterns = ["^Test[A-Z]"]
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func TestAccepted() {}\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 0)
+    }
+
+    func testReportsCasingForCommaSeparatedSwiftBindings() {
+        var config = VetConfig.default()
+        config.casing.enabled = true
+        config.casing.variables = .camelCase
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "var accepted = 1, rejected_name = 2\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.variableCasing)
+    }
 }

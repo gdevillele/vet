@@ -1,0 +1,4 @@
+spec/conformance/casing/go/invalid.go:3:7: VET013: constant "max_connections" must use SNAKE_CASE_FULL_CAPS
+spec/conformance/casing/go/invalid.go:5:6: VET012: type "user_record" must use UpperCamelCase
+spec/conformance/casing/go/invalid.go:7:5: VET011: variable "global_value" must use camelCase
+spec/conformance/casing/go/invalid.go:9:6: VET010: function "Rejected" must use camelCase

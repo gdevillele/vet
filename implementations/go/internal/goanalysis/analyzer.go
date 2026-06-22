@@ -21,6 +21,10 @@ const (
 	RuleFunctionDocstring        = "VET007"
 	RuleIndentType               = "VET008"
 	RuleIndentWidth              = "VET009"
+	RuleFunctionCasing           = "VET010"
+	RuleVariableCasing           = "VET011"
+	RuleTypeCasing               = "VET012"
+	RuleConstantCasing           = "VET013"
 )
 
 type Analyzer struct {
@@ -60,6 +64,12 @@ type indentationCheck struct {
 	Source  []byte
 }
 
+type casingCheck struct {
+	FileSet *token.FileSet
+	File    *ast.File
+	Path    string
+}
+
 type sourceFileHeader struct {
 	Present bool
 	Text    string
@@ -89,6 +99,11 @@ func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) ([]diagnostic.Diagnost
 		Source:  request.Source,
 	})...)
 	diagnostics = append(diagnostics, a.checkFileHeader(fileHeaderCheck{
+		FileSet: fileSet,
+		File:    file,
+		Path:    request.Path,
+	})...)
+	diagnostics = append(diagnostics, a.checkCasing(casingCheck{
 		FileSet: fileSet,
 		File:    file,
 		Path:    request.Path,

@@ -16,3 +16,11 @@ rules:
   indent:
     type: language-default
     width: 0
+  casing:
+    enabled: false
+    functions: language-default
+    variables: language-default
+    types: language-default
+    constants: language-default
+    ignore-names: []
+    ignore-patterns: []

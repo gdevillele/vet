@@ -26,6 +26,16 @@ rules:
   indent:
     type: spaces
     width: 4
+  casing:
+    enabled: true
+    functions: camelCase
+    variables: snake_case
+    types: UpperCamelCase
+    constants: SNAKE_CASE_FULL_CAPS
+    ignore-names:
+      - generated_name
+    ignore-patterns:
+      - "^Test[A-Z]"
 `)
 
 	if err := os.WriteFile(path, data, 0o600); err != nil {
@@ -69,6 +79,27 @@ rules:
 	}
 	if cfg.Indent.Width != 4 {
 		t.Fatalf("expected indent width 4, got %d", cfg.Indent.Width)
+	}
+	if !cfg.Casing.Enabled {
+		t.Fatalf("expected casing rule to be enabled")
+	}
+	if cfg.Casing.Functions != CasingCamelCase {
+		t.Fatalf("expected function casing camelCase, got %q", cfg.Casing.Functions)
+	}
+	if cfg.Casing.Variables != CasingSnakeCase {
+		t.Fatalf("expected variable casing snake_case, got %q", cfg.Casing.Variables)
+	}
+	if cfg.Casing.Types != CasingUpperCamelCase {
+		t.Fatalf("expected type casing UpperCamelCase, got %q", cfg.Casing.Types)
+	}
+	if cfg.Casing.Constants != CasingSnakeUpperCase {
+		t.Fatalf("expected constant casing SNAKE_CASE_FULL_CAPS, got %q", cfg.Casing.Constants)
+	}
+	if len(cfg.Casing.IgnoreNames) != 1 || cfg.Casing.IgnoreNames[0] != "generated_name" {
+		t.Fatalf("expected casing ignore names to load, got %#v", cfg.Casing.IgnoreNames)
+	}
+	if len(cfg.Casing.IgnorePatterns) != 1 || cfg.Casing.IgnorePatterns[0] != "^Test[A-Z]" {
+		t.Fatalf("expected casing ignore patterns to load, got %#v", cfg.Casing.IgnorePatterns)
 	}
 }
 
@@ -135,5 +166,20 @@ func TestValidateRejectsInvalidIndentConfig(t *testing.T) {
 	cfg.Indent.Width = -1
 	if err := Validate(cfg); err == nil {
 		t.Fatalf("expected Validate to reject invalid indent width")
+	}
+}
+
+func TestValidateRejectsInvalidCasingConfig(t *testing.T) {
+	cfg := Default()
+	cfg.Casing.Functions = "mixed"
+
+	if err := Validate(cfg); err == nil {
+		t.Fatalf("expected Validate to reject invalid casing style")
+	}
+
+	cfg = Default()
+	cfg.Casing.IgnorePatterns = []string{"["}
+	if err := Validate(cfg); err == nil {
+		t.Fatalf("expected Validate to reject invalid casing ignore pattern")
 	}
 }

@@ -117,3 +117,11 @@ and Rust.
 
 `VET009` enforces space indentation width when the effective indentation type is
 spaces. A width of `0` disables the width check.
+
+`VET010` through `VET013` enforce casing for functions, variables, types, and
+constants. The grouped `casing` config is disabled by default, and each kind
+defaults to `language-default` to avoid changing existing projects. Go's
+language default follows export visibility: exported identifiers use
+`UpperCamelCase`, while unexported identifiers use `camelCase`. Swift's
+language default uses `camelCase` for functions, variables, and constants, and
+`UpperCamelCase` for types.

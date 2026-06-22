@@ -200,6 +200,24 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(stderr, "")
     }
 
+    func testRunReportsCasingDiagnostics() throws {
+        let directory = temporaryDirectory()
+        let file = directory.appendingPathComponent("sample.swift")
+        try "func Rejected() {}\n".write(to: file, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--function-casing", "camelCase", directory.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertTrue(stdout.contains("VET010"))
+        XCTAssertEqual(stderr, "")
+    }
+
     private func temporaryDirectory() -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

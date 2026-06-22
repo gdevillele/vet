@@ -8,6 +8,7 @@ public struct VetConfig: Equatable {
     public var functionBodyLines: FunctionBodyLinesRule
     public var functionDocstring: FunctionDocstringRule
     public var indent: IndentRule
+    public var casing: CasingRule
 
     public static func `default`() -> VetConfig {
         VetConfig(
@@ -16,7 +17,16 @@ public struct VetConfig: Equatable {
             sourceFileLines: SourceFileLinesRule(max: 0),
             functionBodyLines: FunctionBodyLinesRule(max: 0),
             functionDocstring: FunctionDocstringRule(policy: .optional),
-            indent: IndentRule(type: .languageDefault, width: 0)
+            indent: IndentRule(type: .languageDefault, width: 0),
+            casing: CasingRule(
+                enabled: false,
+                functions: .languageDefault,
+                variables: .languageDefault,
+                types: .languageDefault,
+                constants: .languageDefault,
+                ignoreNames: [],
+                ignorePatterns: []
+            )
         )
     }
 }
@@ -61,6 +71,25 @@ public struct IndentRule: Equatable {
     public var width: Int
 }
 
+public enum CasingStyle: String, Codable, Equatable {
+    case off
+    case languageDefault = "language-default"
+    case camelCase
+    case upperCamelCase = "UpperCamelCase"
+    case snakeCase = "snake_case"
+    case snakeUpperCase = "SNAKE_CASE_FULL_CAPS"
+}
+
+public struct CasingRule: Equatable {
+    public var enabled: Bool
+    public var functions: CasingStyle
+    public var variables: CasingStyle
+    public var types: CasingStyle
+    public var constants: CasingStyle
+    public var ignoreNames: [String]
+    public var ignorePatterns: [String]
+}
+
 public struct ConfigLoadRequest {
     public let path: String
     public let base: VetConfig
@@ -83,6 +112,7 @@ struct RulesFile: Decodable {
     let functionBodyLines: FunctionBodyLinesFile?
     let functionDocstring: FunctionDocstringFile?
     let indent: IndentFile?
+    let casing: CasingFile?
 
     enum CodingKeys: String, CodingKey {
         case maxFunctionParameters = "max-function-parameters"
@@ -91,6 +121,7 @@ struct RulesFile: Decodable {
         case functionBodyLines = "max-function-body-lines"
         case functionDocstring = "function-docstring"
         case indent
+        case casing
     }
 }
 
@@ -126,6 +157,26 @@ struct FunctionDocstringFile: Decodable {
 struct IndentFile: Decodable {
     let type: IndentType?
     let width: Int?
+}
+
+struct CasingFile: Decodable {
+    let enabled: Bool?
+    let functions: CasingStyle?
+    let variables: CasingStyle?
+    let types: CasingStyle?
+    let constants: CasingStyle?
+    let ignoreNames: [String]?
+    let ignorePatterns: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case functions
+        case variables
+        case types
+        case constants
+        case ignoreNames = "ignore-names"
+        case ignorePatterns = "ignore-patterns"
+    }
 }
 
 public enum ConfigError: Error, CustomStringConvertible, Equatable {
@@ -200,6 +251,30 @@ public enum ConfigLoader {
             }
         }
 
+        if let rule = document.rules?.casing {
+            if let enabled = rule.enabled {
+                result.casing.enabled = enabled
+            }
+            if let functions = rule.functions {
+                result.casing.functions = functions
+            }
+            if let variables = rule.variables {
+                result.casing.variables = variables
+            }
+            if let types = rule.types {
+                result.casing.types = types
+            }
+            if let constants = rule.constants {
+                result.casing.constants = constants
+            }
+            if let ignoreNames = rule.ignoreNames {
+                result.casing.ignoreNames = ignoreNames
+            }
+            if let ignorePatterns = rule.ignorePatterns {
+                result.casing.ignorePatterns = ignorePatterns
+            }
+        }
+
         try validate(result)
         return result
     }
@@ -227,6 +302,13 @@ public enum ConfigLoader {
         }
         if config.indent.width < 0 {
             throw ConfigError.invalid("indent.width must be zero or greater")
+        }
+        for pattern in config.casing.ignorePatterns {
+            do {
+                _ = try NSRegularExpression(pattern: pattern)
+            } catch {
+                throw ConfigError.invalid("casing.ignore-patterns contains invalid regex \(pattern)")
+            }
         }
     }
 }

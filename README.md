@@ -79,6 +79,14 @@ rules:
   indent:
     type: language-default
     width: 0
+  casing:
+    enabled: false
+    functions: language-default
+    variables: language-default
+    types: language-default
+    constants: language-default
+    ignore-names: []
+    ignore-patterns: []
 ```
 
 Run with:
@@ -97,10 +105,18 @@ Additional strictness flags:
 --function-docstring-policy optional
 --indent-type language-default
 --indent-width 0
+--casing
+--function-casing language-default
+--variable-casing language-default
+--type-casing language-default
+--constant-casing language-default
 ```
 
 The docstring policy accepts `forbidden`, `optional`, or `mandatory`.
 Indent type accepts `tabs`, `spaces`, or `language-default`.
+Casing styles accept `off`, `language-default`, `camelCase`,
+`UpperCamelCase`, `snake_case`, or `SNAKE_CASE_FULL_CAPS`. The casing rule is
+disabled by default.
 
 ## Architecture Decision
 
