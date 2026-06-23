@@ -93,15 +93,22 @@ public struct CasingRule: Equatable {
 public struct ConfigLoadRequest {
     public let path: String
     public let base: VetConfig
+    public let language: String?
 
-    public init(path: String, base: VetConfig) {
+    public init(path: String, base: VetConfig, language: String? = nil) {
         self.path = path
         self.base = base
+        self.language = language
     }
 }
 
 struct ConfigFile: Decodable {
     let version: Int?
+    let rules: RulesFile?
+    let languages: [String: LanguageFile]?
+}
+
+struct LanguageFile: Decodable {
     let rules: RulesFile?
 }
 
@@ -202,8 +209,23 @@ public enum ConfigLoader {
             throw ConfigError.unsupportedVersion(version)
         }
 
-        var result = request.base
-        if let rule = document.rules?.maxFunctionParameters {
+        var result = applyRules(document.rules, to: request.base)
+        if let language = request.language,
+           let languageRules = document.languages?[language]?.rules {
+            result = applyRules(languageRules, to: result)
+        }
+
+        try validate(result)
+        return result
+    }
+
+    private static func applyRules(_ rules: RulesFile?, to config: VetConfig) -> VetConfig {
+        guard let rules else {
+            return config
+        }
+
+        var result = config
+        if let rule = rules.maxFunctionParameters {
             if let enabled = rule.enabled {
                 result.maxFunctionParameters.enabled = enabled
             }
@@ -212,7 +234,7 @@ public enum ConfigLoader {
             }
         }
 
-        if let rule = document.rules?.sourceFileHeader {
+        if let rule = rules.sourceFileHeader {
             if let required = rule.required {
                 result.sourceFileHeader.required = required
             }
@@ -224,25 +246,25 @@ public enum ConfigLoader {
             }
         }
 
-        if let rule = document.rules?.sourceFileLines {
+        if let rule = rules.sourceFileLines {
             if let max = rule.max {
                 result.sourceFileLines.max = max
             }
         }
 
-        if let rule = document.rules?.functionBodyLines {
+        if let rule = rules.functionBodyLines {
             if let max = rule.max {
                 result.functionBodyLines.max = max
             }
         }
 
-        if let rule = document.rules?.functionDocstring {
+        if let rule = rules.functionDocstring {
             if let policy = rule.policy {
                 result.functionDocstring.policy = policy
             }
         }
 
-        if let rule = document.rules?.indent {
+        if let rule = rules.indent {
             if let type = rule.type {
                 result.indent.type = type
             }
@@ -251,7 +273,7 @@ public enum ConfigLoader {
             }
         }
 
-        if let rule = document.rules?.casing {
+        if let rule = rules.casing {
             if let enabled = rule.enabled {
                 result.casing.enabled = enabled
             }
@@ -275,7 +297,6 @@ public enum ConfigLoader {
             }
         }
 
-        try validate(result)
         return result
     }
 

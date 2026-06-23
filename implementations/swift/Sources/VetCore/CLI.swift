@@ -67,7 +67,7 @@ public enum CLI {
         var config = VetConfig.default()
         if let path = options.configPath {
             do {
-                config = try ConfigLoader.load(ConfigLoadRequest(path: path, base: config))
+                config = try ConfigLoader.load(ConfigLoadRequest(path: path, base: config, language: "swift"))
             } catch {
                 invocation.stderr("vet: \(error)\n")
                 return 2

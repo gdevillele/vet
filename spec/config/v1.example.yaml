@@ -24,3 +24,14 @@ rules:
     constants: language-default
     ignore-names: []
     ignore-patterns: []
+languages:
+  go:
+    rules:
+      indent:
+        type: language-default
+        width: 0
+  swift:
+    rules:
+      indent:
+        type: spaces
+        width: 4

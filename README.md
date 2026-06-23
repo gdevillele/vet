@@ -87,6 +87,17 @@ rules:
     constants: language-default
     ignore-names: []
     ignore-patterns: []
+languages:
+  go:
+    rules:
+      indent:
+        type: language-default
+        width: 0
+  swift:
+    rules:
+      indent:
+        type: spaces
+        width: 4
 ```
 
 Run with:
@@ -96,6 +107,9 @@ go run ./implementations/go/cmd/vet --config .vet.yaml ./...
 ```
 
 Explicit CLI flags override values from the config file.
+
+Top-level `rules` apply as global defaults. `languages.<language>.rules`
+overrides those defaults for a native runner such as `go` or `swift`.
 
 Additional strictness flags:
 

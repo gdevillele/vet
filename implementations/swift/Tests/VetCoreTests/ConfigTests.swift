@@ -63,6 +63,78 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(config.casing.ignorePatterns, ["^Test[A-Z]"])
     }
 
+    func testLoadFileAppliesLanguageOverrides() throws {
+        let directory = temporaryDirectory()
+        let configPath = directory.appendingPathComponent("vet.yaml")
+        let yaml = """
+        version: 1
+        rules:
+          max-function-parameters:
+            enabled: true
+            max: 3
+          indent:
+            type: tabs
+            width: 0
+          casing:
+            enabled: false
+            functions: language-default
+        languages:
+          go:
+            rules:
+              max-function-parameters:
+                max: 2
+              casing:
+                enabled: true
+                functions: camelCase
+          swift:
+            rules:
+              max-function-parameters:
+                max: 5
+              indent:
+                type: spaces
+                width: 4
+        """
+
+        try yaml.write(to: configPath, atomically: true, encoding: .utf8)
+
+        let config = try ConfigLoader.load(ConfigLoadRequest(
+            path: configPath.path,
+            base: .default(),
+            language: "swift"
+        ))
+
+        XCTAssertEqual(config.maxFunctionParameters.max, 5)
+        XCTAssertEqual(config.indent.type, .spaces)
+        XCTAssertEqual(config.indent.width, 4)
+        XCTAssertFalse(config.casing.enabled)
+        XCTAssertEqual(config.casing.functions, .languageDefault)
+    }
+
+    func testLoadFileIgnoresLanguageOverridesWithoutLanguage() throws {
+        let directory = temporaryDirectory()
+        let configPath = directory.appendingPathComponent("vet.yaml")
+        let yaml = """
+        version: 1
+        rules:
+          max-function-parameters:
+            max: 3
+        languages:
+          swift:
+            rules:
+              max-function-parameters:
+                max: 5
+        """
+
+        try yaml.write(to: configPath, atomically: true, encoding: .utf8)
+
+        let config = try ConfigLoader.load(ConfigLoadRequest(
+            path: configPath.path,
+            base: .default()
+        ))
+
+        XCTAssertEqual(config.maxFunctionParameters.max, 3)
+    }
+
     func testValidateRejectsInvalidHeaderBounds() {
         var config = VetConfig.default()
         config.sourceFileHeader.minLength = 20

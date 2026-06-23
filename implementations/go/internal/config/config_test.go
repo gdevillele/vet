@@ -103,6 +103,96 @@ rules:
 	}
 }
 
+func TestLoadFileAppliesLanguageOverrides(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vet.yaml")
+	data := []byte(`version: 1
+rules:
+  max-function-parameters:
+    enabled: true
+    max: 3
+  indent:
+    type: spaces
+    width: 2
+  casing:
+    enabled: false
+    functions: language-default
+languages:
+  go:
+    rules:
+      max-function-parameters:
+        max: 2
+      indent:
+        type: tabs
+        width: 0
+  swift:
+    rules:
+      max-function-parameters:
+        max: 5
+      casing:
+        enabled: true
+        functions: camelCase
+`)
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cfg, err := LoadFile(LoadFileRequest{
+		Path:     path,
+		Base:     Default(),
+		Language: "go",
+	})
+	if err != nil {
+		t.Fatalf("LoadFile returned error: %v", err)
+	}
+
+	if cfg.MaxFunctionParameters.Max != 2 {
+		t.Fatalf("expected go max function parameters override to be 2, got %d", cfg.MaxFunctionParameters.Max)
+	}
+	if cfg.Indent.Type != IndentTabs {
+		t.Fatalf("expected go indent type override to be tabs, got %q", cfg.Indent.Type)
+	}
+	if cfg.Indent.Width != 0 {
+		t.Fatalf("expected go indent width override to be 0, got %d", cfg.Indent.Width)
+	}
+	if cfg.Casing.Enabled {
+		t.Fatalf("expected swift casing override to be ignored for go")
+	}
+	if cfg.Casing.Functions != CasingLanguageDefault {
+		t.Fatalf("expected global casing function style to remain language-default, got %q", cfg.Casing.Functions)
+	}
+}
+
+func TestLoadFileIgnoresLanguageOverridesWithoutLanguage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vet.yaml")
+	data := []byte(`version: 1
+rules:
+  max-function-parameters:
+    max: 3
+languages:
+  go:
+    rules:
+      max-function-parameters:
+        max: 2
+`)
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cfg, err := LoadFile(LoadFileRequest{
+		Path: path,
+		Base: Default(),
+	})
+	if err != nil {
+		t.Fatalf("LoadFile returned error: %v", err)
+	}
+
+	if cfg.MaxFunctionParameters.Max != 3 {
+		t.Fatalf("expected language overrides to be ignored without a requested language, got %d", cfg.MaxFunctionParameters.Max)
+	}
+}
+
 func TestLoadFileRejectsUnknownFields(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "vet.yaml")
 	data := []byte(`version: 1
