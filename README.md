@@ -89,24 +89,41 @@ rules:
     ignore-patterns: []
 languages:
   go:
+    files:
+      - implementations/go/...
+    exclude:
+      - "**/*_test.go"
     rules:
       indent:
         type: language-default
         width: 0
   swift:
+    files:
+      - implementations/swift/Sources/...
+    exclude:
+      - "**/*Tests.swift"
     rules:
       indent:
         type: spaces
         width: 4
 ```
 
-Run with:
+Run with explicit paths:
 
 ```sh
 go run ./implementations/go/cmd/vet --config .vet.yaml ./...
 ```
 
 Explicit CLI flags override values from the config file.
+Explicit CLI paths override `languages.<language>.files`.
+
+When no CLI paths are supplied, a native runner uses
+`languages.<language>.files` as its input set. Entries may be files,
+directories, recursive directories using the existing `...` suffix, or
+shell-style glob patterns such as `cmd/tool/*.go`. `exclude` patterns are
+matched against the collected files; basename patterns such as `*_test.go`,
+recursive suffix patterns such as `**/*Tests.swift`, and directory prefixes
+such as `vendor/**` are supported.
 
 Top-level `rules` apply as global defaults. `languages.<language>.rules`
 overrides those defaults for a native runner such as `go` or `swift`.

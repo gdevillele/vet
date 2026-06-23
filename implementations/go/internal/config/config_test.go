@@ -118,6 +118,10 @@ rules:
     functions: language-default
 languages:
   go:
+    files:
+      - cmd/herm/*.go
+    exclude:
+      - "**/*_test.go"
     rules:
       max-function-parameters:
         max: 2
@@ -148,6 +152,12 @@ languages:
 
 	if cfg.MaxFunctionParameters.Max != 2 {
 		t.Fatalf("expected go max function parameters override to be 2, got %d", cfg.MaxFunctionParameters.Max)
+	}
+	if len(cfg.FileSelection.Files) != 1 || cfg.FileSelection.Files[0] != "cmd/herm/*.go" {
+		t.Fatalf("expected go file selection to load, got %#v", cfg.FileSelection.Files)
+	}
+	if len(cfg.FileSelection.Exclude) != 1 || cfg.FileSelection.Exclude[0] != "**/*_test.go" {
+		t.Fatalf("expected go file excludes to load, got %#v", cfg.FileSelection.Exclude)
 	}
 	if cfg.Indent.Type != IndentTabs {
 		t.Fatalf("expected go indent type override to be tabs, got %q", cfg.Indent.Type)

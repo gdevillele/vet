@@ -87,6 +87,10 @@ final class ConfigTests: XCTestCase {
                 enabled: true
                 functions: camelCase
           swift:
+            files:
+              - Sources/**/*.swift
+            exclude:
+              - "**/*Tests.swift"
             rules:
               max-function-parameters:
                 max: 5
@@ -104,6 +108,8 @@ final class ConfigTests: XCTestCase {
         ))
 
         XCTAssertEqual(config.maxFunctionParameters.max, 5)
+        XCTAssertEqual(config.fileSelection.files, ["Sources/**/*.swift"])
+        XCTAssertEqual(config.fileSelection.exclude, ["**/*Tests.swift"])
         XCTAssertEqual(config.indent.type, .spaces)
         XCTAssertEqual(config.indent.width, 4)
         XCTAssertFalse(config.casing.enabled)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -24,8 +25,14 @@ type Invocation struct {
 }
 
 type fileCollection struct {
-	files []string
-	seen  map[string]bool
+	files   []string
+	seen    map[string]bool
+	exclude []string
+}
+
+type fileCollectionRequest struct {
+	Paths   []string
+	Exclude []string
 }
 
 type diagnosticOrder struct {
@@ -159,12 +166,18 @@ func Run(invocation Invocation) int {
 		return 2
 	}
 
-	paths := flags.Args()
-	if len(paths) == 0 {
-		paths = []string{"."}
+	selection := fileCollectionRequest{
+		Paths: flags.Args(),
+	}
+	if len(selection.Paths) == 0 {
+		selection.Paths = cfg.FileSelection.Files
+		selection.Exclude = cfg.FileSelection.Exclude
+	}
+	if len(selection.Paths) == 0 {
+		selection.Paths = []string{"."}
 	}
 
-	files, err := collectGoFiles(paths)
+	files, err := collectGoFiles(selection)
 	if err != nil {
 		fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
 		return 2
@@ -260,12 +273,13 @@ func visitedFlags(flags *flag.FlagSet) map[string]bool {
 	return visited
 }
 
-func collectGoFiles(paths []string) ([]string, error) {
+func collectGoFiles(request fileCollectionRequest) ([]string, error) {
 	collection := fileCollection{
-		seen: make(map[string]bool),
+		seen:    make(map[string]bool),
+		exclude: request.Exclude,
 	}
 
-	for _, path := range paths {
+	for _, path := range request.Paths {
 		if err := collection.addPath(normalizePath(path)); err != nil {
 			return nil, err
 		}
@@ -276,6 +290,22 @@ func collectGoFiles(paths []string) ([]string, error) {
 }
 
 func (c *fileCollection) addPath(path string) error {
+	if hasGlobSyntax(path) {
+		matches, err := filepath.Glob(path)
+		if err != nil {
+			return err
+		}
+		if len(matches) == 0 {
+			return fmt.Errorf("pattern matched no files: %s", path)
+		}
+		for _, match := range matches {
+			if err := c.addPath(match); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	info, err := os.Stat(path)
 	if err != nil {
 		return err
@@ -309,12 +339,21 @@ func (c *fileCollection) addDir(path string) error {
 }
 
 func (c *fileCollection) addFile(path string) {
-	if !strings.HasSuffix(path, ".go") || c.seen[path] {
+	if !strings.HasSuffix(path, ".go") || c.seen[path] || c.isExcluded(path) {
 		return
 	}
 
 	c.seen[path] = true
 	c.files = append(c.files, path)
+}
+
+func (c *fileCollection) isExcluded(filePath string) bool {
+	for _, pattern := range c.exclude {
+		if matchPathPattern(pattern, filePath) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizePath(path string) string {
@@ -331,6 +370,63 @@ func normalizePath(path string) string {
 	}
 
 	return path
+}
+
+func hasGlobSyntax(path string) bool {
+	return strings.ContainsAny(path, "*?[")
+}
+
+func matchPathPattern(pattern string, filePath string) bool {
+	normalizedPattern := normalizePattern(pattern)
+	normalizedPath := normalizePattern(filePath)
+
+	if normalizedPattern == "" {
+		return false
+	}
+
+	if normalizedPattern == "..." {
+		return true
+	}
+	if strings.HasSuffix(normalizedPattern, "/...") {
+		prefix := strings.TrimSuffix(normalizedPattern, "/...")
+		return normalizedPath == prefix || strings.HasPrefix(normalizedPath, prefix+"/")
+	}
+	if strings.HasSuffix(normalizedPattern, "/**") {
+		prefix := strings.TrimSuffix(normalizedPattern, "/**")
+		return normalizedPath == prefix || strings.HasPrefix(normalizedPath, prefix+"/")
+	}
+	if strings.HasPrefix(normalizedPattern, "**/") {
+		suffixPattern := strings.TrimPrefix(normalizedPattern, "**/")
+		if matchPathPattern(suffixPattern, normalizedPath) {
+			return true
+		}
+		parts := strings.Split(normalizedPath, "/")
+		for index := 1; index < len(parts); index++ {
+			if matchPathPattern(suffixPattern, strings.Join(parts[index:], "/")) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if matches, err := path.Match(normalizedPattern, normalizedPath); err == nil && matches {
+		return true
+	}
+	if !strings.Contains(normalizedPattern, "/") {
+		if matches, err := path.Match(normalizedPattern, path.Base(normalizedPath)); err == nil && matches {
+			return true
+		}
+	}
+
+	return false
+}
+
+func normalizePattern(value string) string {
+	result := filepath.ToSlash(value)
+	for strings.HasPrefix(result, "./") {
+		result = strings.TrimPrefix(result, "./")
+	}
+	return strings.TrimSuffix(result, "/")
 }
 
 func shouldSkipDir(name string) bool {

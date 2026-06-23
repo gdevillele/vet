@@ -26,11 +26,19 @@ rules:
     ignore-patterns: []
 languages:
   go:
+    files:
+      - implementations/go/...
+    exclude:
+      - "**/*_test.go"
     rules:
       indent:
         type: language-default
         width: 0
   swift:
+    files:
+      - implementations/swift/Sources/...
+    exclude:
+      - "**/*Tests.swift"
     rules:
       indent:
         type: spaces
