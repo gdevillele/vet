@@ -108,6 +108,9 @@ languages:
         width: 4
 ```
 
+When `-c` or `--config` is omitted, vet loads `vet.yaml` from the current
+directory if it exists.
+
 Run with explicit paths:
 
 ```sh

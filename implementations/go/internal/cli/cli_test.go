@@ -171,6 +171,45 @@ rules:
 	}
 }
 
+func TestRunReadsDefaultConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	sourcePath := filepath.Join(dir, "sample.go")
+	source := []byte("package sample\n")
+
+	if err := os.WriteFile(sourcePath, source, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	configPath := filepath.Join(dir, "vet.yaml")
+	config := []byte(`version: 1
+rules:
+  source-file-header:
+    required: true
+`)
+
+	if err := os.WriteFile(configPath, config, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"."},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "VET002") {
+		t.Fatalf("expected VET002 diagnostic, got %q", stdout.String())
+	}
+}
+
 func TestRunAppliesGoLanguageConfigOverride(t *testing.T) {
 	dir := t.TempDir()
 	sourcePath := filepath.Join(dir, "sample.go")
