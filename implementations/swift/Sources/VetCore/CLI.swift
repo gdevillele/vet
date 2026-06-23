@@ -60,6 +60,8 @@ struct DiagnosticSortRequest {
 }
 
 public enum CLI {
+    private static let defaultConfigPath = "vet.yaml"
+
     public static func run(_ invocation: CLIInvocation) -> Int {
         let options: CLIOptions
         do {
@@ -75,7 +77,8 @@ public enum CLI {
         }
 
         var config = VetConfig.default()
-        if let path = options.configPath {
+        let configPath = options.configPath ?? defaultConfigPathIfPresent()
+        if let path = configPath {
             do {
                 config = try ConfigLoader.load(ConfigLoadRequest(path: path, base: config, language: "swift"))
             } catch {
@@ -142,6 +145,10 @@ public enum CLI {
         }
 
         return diagnostics.isEmpty ? 0 : 1
+    }
+
+    private static func defaultConfigPathIfPresent() -> String? {
+        FileManager.default.fileExists(atPath: defaultConfigPath) ? defaultConfigPath : nil
     }
 
     private static func parseOptions(_ request: CLIParseRequest) throws -> CLIOptions {

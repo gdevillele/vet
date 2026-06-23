@@ -108,10 +108,13 @@ languages:
         width: 4
 ```
 
+When `-c` or `--config` is omitted, vet loads `vet.yaml` from the current
+directory if it exists.
+
 Run with explicit paths:
 
 ```sh
-go run ./implementations/go/cmd/vet --config .vet.yaml ./...
+go run ./implementations/go/cmd/vet --config vet.yaml ./...
 ```
 
 Explicit CLI flags override values from the config file.

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -16,7 +17,10 @@ import (
 	"github.com/gdevillele/vet/implementations/go/internal/goanalysis"
 )
 
-const Version = "0.1.0-dev"
+const (
+	Version               = "0.1.0-dev"
+	defaultConfigFilename = "vet.yaml"
+)
 
 type Invocation struct {
 	Args   []string
@@ -98,6 +102,13 @@ func Run(invocation Invocation) int {
 	if err != nil {
 		fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
 		return 2
+	}
+	if selectedConfigPath == "" {
+		selectedConfigPath, err = defaultConfigPath()
+		if err != nil {
+			fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
+			return 2
+		}
 	}
 
 	if selectedConfigPath != "" {
@@ -262,6 +273,22 @@ func selectConfigPath(request configPathSelection) (string, error) {
 	}
 
 	return "", nil
+}
+
+func defaultConfigPath() (string, error) {
+	info, err := os.Stat(defaultConfigFilename)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+
+		return "", fmt.Errorf("stat default config %q: %w", defaultConfigFilename, err)
+	}
+	if info.IsDir() {
+		return "", fmt.Errorf("default config %q is a directory", defaultConfigFilename)
+	}
+
+	return defaultConfigFilename, nil
 }
 
 func visitedFlags(flags *flag.FlagSet) map[string]bool {

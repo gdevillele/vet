@@ -86,6 +86,37 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(stderr, "")
     }
 
+    func testRunReadsDefaultConfigFile() throws {
+        let directory = temporaryDirectory()
+        let originalDirectory = FileManager.default.currentDirectoryPath
+        defer {
+            _ = FileManager.default.changeCurrentDirectoryPath(originalDirectory)
+        }
+        XCTAssertTrue(FileManager.default.changeCurrentDirectoryPath(directory.path))
+
+        let file = directory.appendingPathComponent("sample.swift")
+        let config = directory.appendingPathComponent("vet.yaml")
+        try "func accepted(_ value: Int) {}\n".write(to: file, atomically: true, encoding: .utf8)
+        try """
+        version: 1
+        rules:
+          source-file-header:
+            required: true
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["."],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertTrue(stdout.contains("VET002"))
+        XCTAssertEqual(stderr, "")
+    }
+
     func testRunAppliesSwiftLanguageConfigOverride() throws {
         let directory = temporaryDirectory()
         let file = directory.appendingPathComponent("sample.swift")
