@@ -87,13 +87,19 @@ type CasingRule struct {
 }
 
 type LoadFileRequest struct {
-	Path string
-	Base Config
+	Path     string
+	Base     Config
+	Language string
 }
 
 type fileConfig struct {
-	Version *int      `yaml:"version"`
-	Rules   rulesFile `yaml:"rules"`
+	Version   *int                    `yaml:"version"`
+	Rules     rulesFile               `yaml:"rules"`
+	Languages map[string]languageFile `yaml:"languages"`
+}
+
+type languageFile struct {
+	Rules rulesFile `yaml:"rules"`
 }
 
 type rulesFile struct {
@@ -195,9 +201,24 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 		return request.Base, fmt.Errorf("config %q uses unsupported version %d", request.Path, *document.Version)
 	}
 
-	result := request.Base
-	if document.Rules.MaxFunctionParameters != nil {
-		rule := document.Rules.MaxFunctionParameters
+	result := applyRules(request.Base, document.Rules)
+	if request.Language != "" {
+		if language, ok := document.Languages[request.Language]; ok {
+			result = applyRules(result, language.Rules)
+		}
+	}
+
+	if err := Validate(result); err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
+func applyRules(cfg Config, rules rulesFile) Config {
+	result := cfg
+	if rules.MaxFunctionParameters != nil {
+		rule := rules.MaxFunctionParameters
 		if rule.Enabled != nil {
 			result.MaxFunctionParameters.Enabled = *rule.Enabled
 		}
@@ -206,8 +227,8 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 		}
 	}
 
-	if document.Rules.SourceFileHeader != nil {
-		rule := document.Rules.SourceFileHeader
+	if rules.SourceFileHeader != nil {
+		rule := rules.SourceFileHeader
 		if rule.Required != nil {
 			result.SourceFileHeader.Required = *rule.Required
 		}
@@ -219,29 +240,29 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 		}
 	}
 
-	if document.Rules.SourceFileLines != nil {
-		rule := document.Rules.SourceFileLines
+	if rules.SourceFileLines != nil {
+		rule := rules.SourceFileLines
 		if rule.Max != nil {
 			result.SourceFileLines.Max = *rule.Max
 		}
 	}
 
-	if document.Rules.FunctionBodyLines != nil {
-		rule := document.Rules.FunctionBodyLines
+	if rules.FunctionBodyLines != nil {
+		rule := rules.FunctionBodyLines
 		if rule.Max != nil {
 			result.FunctionBodyLines.Max = *rule.Max
 		}
 	}
 
-	if document.Rules.FunctionDocstring != nil {
-		rule := document.Rules.FunctionDocstring
+	if rules.FunctionDocstring != nil {
+		rule := rules.FunctionDocstring
 		if rule.Policy != nil {
 			result.FunctionDocstring.Policy = *rule.Policy
 		}
 	}
 
-	if document.Rules.Indent != nil {
-		rule := document.Rules.Indent
+	if rules.Indent != nil {
+		rule := rules.Indent
 		if rule.Type != nil {
 			result.Indent.Type = *rule.Type
 		}
@@ -250,8 +271,8 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 		}
 	}
 
-	if document.Rules.Casing != nil {
-		rule := document.Rules.Casing
+	if rules.Casing != nil {
+		rule := rules.Casing
 		if rule.Enabled != nil {
 			result.Casing.Enabled = *rule.Enabled
 		}
@@ -275,11 +296,7 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 		}
 	}
 
-	if err := Validate(result); err != nil {
-		return result, err
-	}
-
-	return result, nil
+	return result
 }
 
 func Validate(cfg Config) error {

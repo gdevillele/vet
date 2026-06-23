@@ -95,8 +95,9 @@ func Run(invocation Invocation) int {
 
 	if selectedConfigPath != "" {
 		loadedConfig, err := config.LoadFile(config.LoadFileRequest{
-			Path: selectedConfigPath,
-			Base: cfg,
+			Path:     selectedConfigPath,
+			Base:     cfg,
+			Language: "go",
 		})
 		if err != nil {
 			fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
