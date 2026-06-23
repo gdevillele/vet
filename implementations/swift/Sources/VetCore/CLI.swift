@@ -355,9 +355,11 @@ public enum CLI {
     }
 
     private static func renderText(_ request: RenderRequest) {
-        for diagnostic in request.diagnostics {
-            request.writer("\(diagnostic.file):\(diagnostic.line):\(diagnostic.column): \(diagnostic.ruleID): \(diagnostic.message)\n")
+        guard let diagnostic = request.diagnostics.first else {
+            return
         }
+
+        request.writer("\(diagnostic.file):\(diagnostic.line):\(diagnostic.column): \(diagnostic.ruleID): \(diagnostic.message)\n")
     }
 
     private static func renderJSON(_ request: RenderRequest) throws {

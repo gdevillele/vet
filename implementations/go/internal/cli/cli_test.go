@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -454,10 +455,70 @@ func missing() {
 		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 
-	for _, rule := range []string{"VET005", "VET006", "VET007"} {
-		if !strings.Contains(stdout.String(), rule) {
-			t.Fatalf("expected %s diagnostic, got %q", rule, stdout.String())
-		}
+	lines := strings.Split(strings.TrimSpace(stdout.String()), "\n")
+	if len(lines) != 1 {
+		t.Fatalf("expected one text diagnostic, got %d: %q", len(lines), stdout.String())
+	}
+	if !strings.Contains(lines[0], "VET005") {
+		t.Fatalf("expected first sorted diagnostic VET005, got %q", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "VET006") || strings.Contains(stdout.String(), "VET007") {
+		t.Fatalf("expected default text output to omit later diagnostics, got %q", stdout.String())
+	}
+}
+
+func TestRunReportsAllDiagnosticsAsJSON(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "sample.go")
+	source := []byte(`package sample
+
+func missing() {
+	println("one")
+	println("two")
+}
+`)
+
+	if err := os.WriteFile(file, source, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args: []string{
+			"--format", "json",
+			"--max-source-file-lines", "2",
+			"--max-function-body-lines", "1",
+			"--function-docstring-policy", "mandatory",
+			dir,
+		},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if stderr.String() != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr.String())
+	}
+
+	var payload struct {
+		Diagnostics []struct {
+			RuleID string `json:"rule_id"`
+		} `json:"diagnostics"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("Unmarshal returned error: %v; stdout=%q", err, stdout.String())
+	}
+
+	got := make([]string, 0, len(payload.Diagnostics))
+	for _, item := range payload.Diagnostics {
+		got = append(got, item.RuleID)
+	}
+	want := []string{"VET005", "VET006", "VET007"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected diagnostics %v, got %v; stdout=%q", want, got, stdout.String())
 	}
 }
 

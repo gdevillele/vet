@@ -286,10 +286,47 @@ final class CLITests: XCTestCase {
         ))
 
         XCTAssertEqual(code, 1)
-        XCTAssertTrue(stdout.contains("VET005"))
-        XCTAssertTrue(stdout.contains("VET006"))
-        XCTAssertTrue(stdout.contains("VET007"))
+        let lines = stdout.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "\n")
+        XCTAssertEqual(lines.count, 1)
+        XCTAssertTrue(lines[0].contains("VET005"))
+        XCTAssertFalse(stdout.contains("VET006"))
+        XCTAssertFalse(stdout.contains("VET007"))
         XCTAssertEqual(stderr, "")
+    }
+
+    func testRunReportsAllDiagnosticsAsJSON() throws {
+        let directory = temporaryDirectory()
+        let file = directory.appendingPathComponent("sample.swift")
+        try """
+        func missing() {
+            print("one")
+            print("two")
+        }
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: [
+                "--format", "json",
+                "--max-source-file-lines", "2",
+                "--max-function-body-lines", "1",
+                "--function-docstring-policy", "mandatory",
+                directory.path,
+            ],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertEqual(stderr, "")
+
+        let data = try XCTUnwrap(stdout.data(using: .utf8))
+        let object = try JSONSerialization.jsonObject(with: data)
+        let payload = try XCTUnwrap(object as? [String: Any])
+        let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [[String: Any]])
+        let ruleIDs = diagnostics.compactMap { $0["rule_id"] as? String }
+        XCTAssertEqual(ruleIDs, ["VET005", "VET006", "VET007"])
     }
 
     func testRunReportsIndentDiagnostics() throws {
