@@ -1,4 +1,9 @@
 import Foundation
+#if os(Linux)
+import Glibc
+#else
+import Darwin
+#endif
 
 public typealias OutputWriter = (String) -> Void
 
@@ -44,6 +49,11 @@ struct RenderRequest {
     let writer: OutputWriter
 }
 
+struct FileCollectionRequest {
+    let paths: [String]
+    let exclude: [String]
+}
+
 struct DiagnosticSortRequest {
     let left: Diagnostic
     let right: Diagnostic
@@ -83,10 +93,19 @@ public enum CLI {
             return 2
         }
 
-        let paths = options.paths.isEmpty ? ["."] : options.paths
+        let selection: FileCollectionRequest
+        if options.paths.isEmpty {
+            selection = FileCollectionRequest(
+                paths: config.fileSelection.files.isEmpty ? ["."] : config.fileSelection.files,
+                exclude: config.fileSelection.exclude
+            )
+        } else {
+            selection = FileCollectionRequest(paths: options.paths, exclude: [])
+        }
+
         let files: [String]
         do {
-            files = try collectSwiftFiles(paths)
+            files = try collectSwiftFiles(selection)
         } catch {
             invocation.stderr("vet: \(error)\n")
             return 2
@@ -297,9 +316,9 @@ public enum CLI {
         return config
     }
 
-    private static func collectSwiftFiles(_ paths: [String]) throws -> [String] {
-        var collector = FileCollector()
-        for path in paths {
+    private static func collectSwiftFiles(_ request: FileCollectionRequest) throws -> [String] {
+        var collector = FileCollector(exclude: request.exclude)
+        for path in request.paths {
             try collector.addPath(normalizePath(path))
         }
         return collector.files.sorted()
@@ -369,8 +388,24 @@ struct DiagnosticPayload: Encodable {
 struct FileCollector {
     var files: [String] = []
     var seen: Set<String> = []
+    var exclude: [String] = []
 
     mutating func addPath(_ path: String) throws {
+        if hasGlobSyntax(path) {
+            let matches = try expandGlob(path)
+            if matches.isEmpty {
+                throw CLIError.message("pattern matched no files: \(path)")
+            }
+            for match in matches {
+                try addPath(match)
+            }
+            return
+        }
+
+        try addConcretePath(path)
+    }
+
+    private mutating func addConcretePath(_ path: String) throws {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
             throw CLIError.message("path does not exist: \(path)")
@@ -394,13 +429,107 @@ struct FileCollector {
     }
 
     private mutating func addFile(_ path: String) {
-        guard path.hasSuffix(".swift") && !seen.contains(path) else {
+        guard path.hasSuffix(".swift") && !seen.contains(path) && !isExcluded(path) else {
             return
         }
 
         seen.insert(path)
         files.append(path)
     }
+
+    private func isExcluded(_ path: String) -> Bool {
+        exclude.contains { patternMatches($0, path) }
+    }
+
+    private func hasGlobSyntax(_ path: String) -> Bool {
+        path.contains("*") || path.contains("?") || path.contains("[")
+    }
+
+    private func expandGlob(_ pattern: String) throws -> [String] {
+        var results = glob_t()
+        let status = glob(pattern, 0, nil, &results)
+        defer {
+            globfree(&results)
+        }
+
+        if status == GLOB_NOMATCH {
+            return []
+        }
+        if status != 0 {
+            throw CLIError.message("invalid file pattern: \(pattern)")
+        }
+
+        var matches: [String] = []
+        guard let paths = results.gl_pathv else {
+            return matches
+        }
+        for index in 0..<Int(results.gl_pathc) {
+            if let path = paths[index] {
+                matches.append(String(cString: path))
+            }
+        }
+        return matches
+    }
+}
+
+func patternMatches(_ pattern: String, _ filePath: String) -> Bool {
+    let normalizedPattern = normalizePattern(pattern)
+    let normalizedPath = normalizePattern(filePath)
+
+    if normalizedPattern.isEmpty {
+        return false
+    }
+    if normalizedPattern == "..." {
+        return true
+    }
+    if normalizedPattern.hasSuffix("/...") {
+        let prefix = String(normalizedPattern.dropLast(4))
+        return normalizedPath == prefix || normalizedPath.hasPrefix(prefix + "/")
+    }
+    if normalizedPattern.hasSuffix("/**") {
+        let prefix = String(normalizedPattern.dropLast(3))
+        return normalizedPath == prefix || normalizedPath.hasPrefix(prefix + "/")
+    }
+    if normalizedPattern.hasPrefix("**/") {
+        let suffixPattern = String(normalizedPattern.dropFirst(3))
+        if patternMatches(suffixPattern, normalizedPath) {
+            return true
+        }
+
+        let parts = normalizedPath.split(separator: "/").map(String.init)
+        guard parts.count > 1 else {
+            return false
+        }
+        for index in 1..<parts.count {
+            if patternMatches(suffixPattern, parts[index...].joined(separator: "/")) {
+                return true
+            }
+        }
+        return false
+    }
+
+    if fnmatch(normalizedPattern, normalizedPath, FNM_PATHNAME) == 0 {
+        return true
+    }
+    if !normalizedPattern.contains("/") {
+        let baseName = (normalizedPath as NSString).lastPathComponent
+        if fnmatch(normalizedPattern, baseName, 0) == 0 {
+            return true
+        }
+    }
+
+    return false
+}
+
+func normalizePattern(_ value: String) -> String {
+    var result = value.replacingOccurrences(of: "\\", with: "/")
+    while result.hasPrefix("./") {
+        result.removeFirst(2)
+    }
+    while result.hasSuffix("/") {
+        result.removeLast()
+    }
+    return result
 }
 
 enum CLIError: Error, CustomStringConvertible {

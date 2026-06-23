@@ -122,6 +122,80 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(stderr, "")
     }
 
+    func testRunUsesSwiftLanguageFileSelectionFromConfig() throws {
+        let directory = temporaryDirectory()
+        let sourceDirectory = directory.appendingPathComponent("source")
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+
+        let included = sourceDirectory.appendingPathComponent("Included.swift")
+        try """
+        func rejected(_ left: Int, _ right: Int) {}
+        """.write(to: included, atomically: true, encoding: .utf8)
+
+        let excluded = sourceDirectory.appendingPathComponent("IgnoredTests.swift")
+        try """
+        func ignored(_ left: Int, _ right: Int) {}
+        """.write(to: excluded, atomically: true, encoding: .utf8)
+
+        let config = directory.appendingPathComponent("vet.yaml")
+        try """
+        version: 1
+        languages:
+          swift:
+            files:
+              - \(sourceDirectory.path)/*.swift
+            exclude:
+              - "**/*Tests.swift"
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--config", config.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertTrue(stdout.contains("Included.swift"))
+        XCTAssertFalse(stdout.contains("IgnoredTests.swift"))
+        XCTAssertEqual(stderr, "")
+    }
+
+    func testRunExplicitPathsOverrideConfigFileSelection() throws {
+        let directory = temporaryDirectory()
+        let configured = directory.appendingPathComponent("Configured.swift")
+        try """
+        func rejected(_ left: Int, _ right: Int) {}
+        """.write(to: configured, atomically: true, encoding: .utf8)
+
+        let explicit = directory.appendingPathComponent("Explicit.swift")
+        try """
+        func accepted(_ value: Int) {}
+        """.write(to: explicit, atomically: true, encoding: .utf8)
+
+        let config = directory.appendingPathComponent("vet.yaml")
+        try """
+        version: 1
+        languages:
+          swift:
+            files:
+              - \(configured.path)
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--config", config.path, explicit.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 0)
+        XCTAssertEqual(stdout, "")
+        XCTAssertEqual(stderr, "")
+    }
+
     func testRunReadsShortConfigFlag() throws {
         let directory = temporaryDirectory()
         let file = directory.appendingPathComponent("sample.swift")

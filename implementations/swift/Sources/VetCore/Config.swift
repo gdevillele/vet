@@ -9,6 +9,7 @@ public struct VetConfig: Equatable {
     public var functionDocstring: FunctionDocstringRule
     public var indent: IndentRule
     public var casing: CasingRule
+    public var fileSelection: FileSelection
 
     public static func `default`() -> VetConfig {
         VetConfig(
@@ -26,7 +27,8 @@ public struct VetConfig: Equatable {
                 constants: .languageDefault,
                 ignoreNames: [],
                 ignorePatterns: []
-            )
+            ),
+            fileSelection: FileSelection(files: [], exclude: [])
         )
     }
 }
@@ -90,6 +92,11 @@ public struct CasingRule: Equatable {
     public var ignorePatterns: [String]
 }
 
+public struct FileSelection: Equatable {
+    public var files: [String]
+    public var exclude: [String]
+}
+
 public struct ConfigLoadRequest {
     public let path: String
     public let base: VetConfig
@@ -109,6 +116,8 @@ struct ConfigFile: Decodable {
 }
 
 struct LanguageFile: Decodable {
+    let files: [String]?
+    let exclude: [String]?
     let rules: RulesFile?
 }
 
@@ -211,8 +220,12 @@ public enum ConfigLoader {
 
         var result = applyRules(document.rules, to: request.base)
         if let language = request.language,
-           let languageRules = document.languages?[language]?.rules {
-            result = applyRules(languageRules, to: result)
+           let languageConfig = document.languages?[language] {
+            result.fileSelection = FileSelection(
+                files: languageConfig.files ?? [],
+                exclude: languageConfig.exclude ?? []
+            )
+            result = applyRules(languageConfig.rules, to: result)
         }
 
         try validate(result)

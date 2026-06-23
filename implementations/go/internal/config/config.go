@@ -19,6 +19,7 @@ type Config struct {
 	FunctionDocstring     FunctionDocstringRule
 	Indent                IndentRule
 	Casing                CasingRule
+	FileSelection         FileSelection
 }
 
 type MaxFunctionParametersRule struct {
@@ -86,6 +87,11 @@ type CasingRule struct {
 	IgnorePatterns []string
 }
 
+type FileSelection struct {
+	Files   []string
+	Exclude []string
+}
+
 type LoadFileRequest struct {
 	Path     string
 	Base     Config
@@ -99,7 +105,9 @@ type fileConfig struct {
 }
 
 type languageFile struct {
-	Rules rulesFile `yaml:"rules"`
+	Files   []string  `yaml:"files"`
+	Exclude []string  `yaml:"exclude"`
+	Rules   rulesFile `yaml:"rules"`
 }
 
 type rulesFile struct {
@@ -204,6 +212,10 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 	result := applyRules(request.Base, document.Rules)
 	if request.Language != "" {
 		if language, ok := document.Languages[request.Language]; ok {
+			result.FileSelection = FileSelection{
+				Files:   append([]string(nil), language.Files...),
+				Exclude: append([]string(nil), language.Exclude...),
+			}
 			result = applyRules(result, language.Rules)
 		}
 	}

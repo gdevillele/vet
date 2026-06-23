@@ -215,6 +215,109 @@ languages:
 	}
 }
 
+func TestRunUsesGoLanguageFileSelectionFromConfig(t *testing.T) {
+	dir := t.TempDir()
+	sourceDir := filepath.Join(dir, "source")
+	if err := os.Mkdir(sourceDir, 0o700); err != nil {
+		t.Fatalf("Mkdir returned error: %v", err)
+	}
+
+	includedPath := filepath.Join(sourceDir, "included.go")
+	includedSource := []byte(`package sample
+
+func rejected(left int, right int) {}
+`)
+	if err := os.WriteFile(includedPath, includedSource, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	excludedPath := filepath.Join(sourceDir, "ignored_test.go")
+	excludedSource := []byte(`package sample
+
+func ignored(left int, right int) {}
+`)
+	if err := os.WriteFile(excludedPath, excludedSource, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	configPath := filepath.Join(dir, "vet.yaml")
+	config := []byte(`version: 1
+languages:
+  go:
+    files:
+      - ` + filepath.ToSlash(filepath.Join(sourceDir, "*.go")) + `
+    exclude:
+      - "**/*_test.go"
+`)
+
+	if err := os.WriteFile(configPath, config, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"--config", configPath},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "included.go") {
+		t.Fatalf("expected included file diagnostic, got %q", stdout.String())
+	}
+	if strings.Contains(stdout.String(), "ignored_test.go") {
+		t.Fatalf("expected excluded file to be omitted, got %q", stdout.String())
+	}
+}
+
+func TestRunExplicitPathsOverrideConfigFileSelection(t *testing.T) {
+	dir := t.TempDir()
+	configuredPath := filepath.Join(dir, "configured.go")
+	configuredSource := []byte(`package sample
+
+func rejected(left int, right int) {}
+`)
+	if err := os.WriteFile(configuredPath, configuredSource, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	explicitPath := filepath.Join(dir, "explicit.go")
+	explicitSource := []byte(`package sample
+
+func accepted(value int) {}
+`)
+	if err := os.WriteFile(explicitPath, explicitSource, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	configPath := filepath.Join(dir, "vet.yaml")
+	config := []byte(`version: 1
+languages:
+  go:
+    files:
+      - ` + filepath.ToSlash(configuredPath) + `
+`)
+
+	if err := os.WriteFile(configPath, config, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"--config", configPath, explicitPath},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
 func TestRunFlagsOverrideConfigFile(t *testing.T) {
 	dir := t.TempDir()
 	sourcePath := filepath.Join(dir, "sample.go")
