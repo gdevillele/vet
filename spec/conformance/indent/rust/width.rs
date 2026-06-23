@@ -1,0 +1,3 @@
+fn rejected() {
+  println!("one");
+}

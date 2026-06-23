@@ -1,0 +1,1 @@
+spec/conformance/function-docstring/rust/forbidden.rs:2:4: VET007: documented must not have a docstring

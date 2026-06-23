@@ -43,3 +43,12 @@ languages:
       indent:
         type: spaces
         width: 4
+  rust:
+    files:
+      - implementations/rust/src/...
+    exclude:
+      - "target/**"
+    rules:
+      indent:
+        type: spaces
+        width: 4

@@ -22,7 +22,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -40,7 +40,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -58,7 +58,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -77,7 +77,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -96,7 +96,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -115,7 +115,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -134,7 +134,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -153,7 +153,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -174,7 +174,7 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
@@ -198,14 +198,14 @@ rules:
           - Go export visibility is determined by identifier casing; non-default styles can intentionally reject exported or unexported API names.
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
     summary: Function and method names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
-      - language-default means exported UpperCamelCase and unexported camelCase for Go, and camelCase for Swift functions.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, camelCase for Swift functions, and snake_case for Rust functions.
   VET011:
     name: variable-casing
     default_severity: error
@@ -220,14 +220,14 @@ rules:
           - The blank identifier is ignored.
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
     summary: Variable names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
-      - language-default means exported UpperCamelCase and unexported camelCase for Go, and camelCase for Swift variables.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, camelCase for Swift variables, and snake_case for Rust variables.
   VET012:
     name: type-casing
     default_severity: error
@@ -240,14 +240,14 @@ rules:
         implementation: implemented
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
     summary: Type names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
-      - language-default means exported UpperCamelCase and unexported camelCase for Go, and UpperCamelCase for Swift types.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, and UpperCamelCase for Swift and Rust types.
   VET013:
     name: constant-casing
     default_severity: error
@@ -262,11 +262,11 @@ rules:
           - Go constants are legal in SNAKE_CASE_FULL_CAPS, but Go's idiomatic default is MixedCaps rather than screaming snake case.
       rust:
         status: compatible
-        implementation: planned
+        implementation: implemented
       swift:
         status: compatible
         implementation: implemented
     summary: Constant names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
-      - language-default means exported UpperCamelCase and unexported camelCase for Go, and camelCase for Swift constants.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, camelCase for Swift constants, and SNAKE_CASE_FULL_CAPS for Rust constants.

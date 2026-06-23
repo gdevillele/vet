@@ -1,0 +1,1 @@
+spec/conformance/casing/rust/invalid.rs:1:7: VET013: constant "max_connections" must use SNAKE_CASE_FULL_CAPS
