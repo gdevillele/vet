@@ -111,7 +111,7 @@ languages:
 Run with explicit paths:
 
 ```sh
-go run ./implementations/go/cmd/vet --config .vet.yaml ./...
+go run ./implementations/go/cmd/vet --config vet.yaml ./...
 ```
 
 Explicit CLI flags override values from the config file.
