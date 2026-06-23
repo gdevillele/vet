@@ -117,6 +117,10 @@ go run ./implementations/go/cmd/vet --config .vet.yaml ./...
 Explicit CLI flags override values from the config file.
 Explicit CLI paths override `languages.<language>.files`.
 
+Default text output prints only the first diagnostic after sorting by file,
+line, column, and rule ID. This keeps agent feedback short and focused. Use
+`--format json` when tooling needs the complete diagnostic list.
+
 When no CLI paths are supplied, a native runner uses
 `languages.<language>.files` as its input set. Entries may be files,
 directories, recursive directories using the existing `...` suffix, or

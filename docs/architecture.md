@@ -89,6 +89,11 @@ The shared spec owns:
 - diagnostic vocabulary;
 - conformance fixtures.
 
+Native runners collect and sort the complete diagnostic set. Default text
+output renders only the first sorted diagnostic so agent feedback stays short
+and actionable. JSON output remains the complete machine-readable diagnostic
+payload.
+
 ## Initial Rules
 
 `VET001` enforces a maximum number of function parameters. The default maximum

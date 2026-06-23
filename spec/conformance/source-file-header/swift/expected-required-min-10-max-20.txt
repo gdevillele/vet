@@ -1,3 +1,1 @@
 spec/conformance/source-file-header/swift/long.swift:1:1: VET004: file header has 64 characters; maximum allowed is 20
-spec/conformance/source-file-header/swift/missing.swift:1:1: VET002: source file has no header
-spec/conformance/source-file-header/swift/short.swift:1:1: VET003: file header has 4 characters; minimum allowed is 10

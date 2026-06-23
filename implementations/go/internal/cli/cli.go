@@ -466,9 +466,12 @@ func diagnosticComesAfter(order diagnosticOrder) bool {
 }
 
 func renderText(request renderRequest) {
-	for _, item := range request.Diagnostics {
-		fmt.Fprintf(request.Writer, "%s:%d:%d: %s: %s\n", item.File, item.Line, item.Column, item.RuleID, item.Message)
+	if len(request.Diagnostics) == 0 {
+		return
 	}
+
+	item := request.Diagnostics[0]
+	fmt.Fprintf(request.Writer, "%s:%d:%d: %s: %s\n", item.File, item.Line, item.Column, item.RuleID, item.Message)
 }
 
 func renderJSON(request renderRequest) error {

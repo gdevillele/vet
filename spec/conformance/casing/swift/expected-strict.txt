@@ -1,4 +1,1 @@
 spec/conformance/casing/swift/invalid.swift:1:5: VET013: constant "max_connections" must use SNAKE_CASE_FULL_CAPS
-spec/conformance/casing/swift/invalid.swift:2:5: VET011: variable "global_value" must use camelCase
-spec/conformance/casing/swift/invalid.swift:3:8: VET012: type "user_record" must use UpperCamelCase
-spec/conformance/casing/swift/invalid.swift:4:6: VET010: function "Rejected" must use camelCase
