@@ -1,0 +1,1 @@
+spec/conformance/max-function-parameters/rust/invalid.rs:3:4: VET001: rejected has 2 parameters; maximum allowed is 1

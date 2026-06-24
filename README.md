@@ -41,6 +41,12 @@ From `implementations/swift`:
 swift run vet ../../spec/conformance/max-function-parameters/swift
 ```
 
+From `implementations/rust`:
+
+```sh
+cargo run -- ../../spec/conformance/max-function-parameters/rust
+```
+
 The default enabled rule is `VET001`, which rejects functions with more than one
 parameter.
 
@@ -102,6 +108,15 @@ languages:
       - implementations/swift/Sources/...
     exclude:
       - "**/*Tests.swift"
+    rules:
+      indent:
+        type: spaces
+        width: 4
+  rust:
+    files:
+      - implementations/rust/src/...
+    exclude:
+      - "target/**"
     rules:
       indent:
         type: spaces
@@ -169,8 +184,8 @@ That means:
 - Rule semantics do not drift between implementations.
 
 The shared rule spec records both compatibility and implementation status for
-Go, Rust, and Swift. All current rules are compatible with all three languages;
-Go and Swift are implemented, while Rust is still planned.
+Go, Rust, and Swift. All current rules are compatible with all three languages
+and implemented by the native runners.
 
-See [docs/architecture.md](docs/architecture.md) for the rationale and planned
+See [docs/architecture.md](docs/architecture.md) for the rationale and
 implementation boundaries.

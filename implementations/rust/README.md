@@ -1,18 +1,26 @@
 # Rust Implementation
 
-This directory will contain the Rust-native `vet` runner.
+This directory contains the Rust-native `vet` runner.
 
-Expected usage:
+Usage:
 
 ```sh
 cargo run -- path/to/project
 ```
 
-The Rust implementation should consume the shared rule contract in `../../spec`
-and emit the same diagnostic shape as the other implementations.
+Run the local test suite:
 
-Likely parser options:
+```sh
+cargo test
+```
 
-- `syn` for standalone Rust source parsing;
-- rust-analyzer syntax crates for richer project-aware analysis;
-- compiler-integrated linting only if the rule set needs semantic type data.
+The Rust runner consumes the shared rule contract in `../../spec`, emits the
+same diagnostic shape as the Go and Swift implementations, and enforces the
+same CLI/config behavior for Rust source files.
+
+Rust language defaults:
+
+- indentation uses spaces;
+- functions and variables use `snake_case`;
+- types use `UpperCamelCase`;
+- constants use `SNAKE_CASE_FULL_CAPS`.

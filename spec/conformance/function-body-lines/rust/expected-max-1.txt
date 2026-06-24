@@ -1,0 +1,1 @@
+spec/conformance/function-body-lines/rust/invalid.rs:1:4: VET006: rejected body has 2 lines; maximum allowed is 1

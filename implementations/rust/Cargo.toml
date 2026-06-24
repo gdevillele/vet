@@ -1,0 +1,17 @@
+[package]
+name = "vet"
+version = "0.1.0-dev"
+edition = "2021"
+
+[dependencies]
+glob = "0.3"
+proc-macro2 = { version = "1", features = ["span-locations"] }
+quote = "1"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+syn = { version = "2", features = ["full", "visit"] }
+
+[dev-dependencies]
+tempfile = "3"

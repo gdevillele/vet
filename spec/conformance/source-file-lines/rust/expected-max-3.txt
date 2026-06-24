@@ -1,0 +1,1 @@
+spec/conformance/source-file-lines/rust/invalid.rs:1:1: VET005: source file has 4 lines; maximum allowed is 3

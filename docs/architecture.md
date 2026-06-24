@@ -66,8 +66,8 @@ Implementation statuses:
 - `unimplemented`: the rule is compatible, but no implementation is scheduled.
 - `not-applicable`: the rule is incompatible with the language.
 
-All current rules are compatible with Go, Rust, and Swift. Go and Swift
-currently implement them; Rust is compatible but still planned.
+All current rules are compatible with Go, Rust, and Swift, and all three native
+runners currently implement them.
 
 ## Implementation Boundary
 
@@ -129,4 +129,6 @@ defaults to `language-default` to avoid changing existing projects. Go's
 language default follows export visibility: exported identifiers use
 `UpperCamelCase`, while unexported identifiers use `camelCase`. Swift's
 language default uses `camelCase` for functions, variables, and constants, and
-`UpperCamelCase` for types.
+`UpperCamelCase` for types. Rust's language default uses `snake_case` for
+functions and variables, `UpperCamelCase` for types, and
+`SNAKE_CASE_FULL_CAPS` for constants.
