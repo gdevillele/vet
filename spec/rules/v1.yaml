@@ -270,3 +270,25 @@ rules:
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
       - language-default means exported UpperCamelCase and unexported camelCase for Go, camelCase for Swift constants, and SNAKE_CASE_FULL_CAPS for Rust constants.
+  VET014:
+    name: github-actions-pinned
+    default_severity: error
+    default_config:
+      enabled: false
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: implemented
+      swift:
+        status: compatible
+        implementation: implemented
+    summary: GitHub workflow step actions must be pinned to full-length commit SHAs when enabled.
+    notes:
+      - The rule is opt-in and scans .github/workflows/*.yml and .github/workflows/*.yaml by default.
+      - Only jobs.<job>.steps[*].uses entries are checked.
+      - Local actions beginning ./ and Docker actions beginning docker:// are ignored.
+      - Valid external action pins use exactly 40 hexadecimal characters after @.
+      - Job-level reusable workflow calls are ignored.

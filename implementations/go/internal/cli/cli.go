@@ -39,6 +39,16 @@ type fileCollectionRequest struct {
 	Exclude []string
 }
 
+type workflowCollection struct {
+	files []string
+	seen  map[string]bool
+}
+
+type workflowCollectionRequest struct {
+	Paths    []string
+	Explicit bool
+}
+
 type diagnosticOrder struct {
 	Left  diagnostic.Diagnostic
 	Right diagnostic.Diagnostic
@@ -81,6 +91,7 @@ func Run(invocation Invocation) int {
 	variableCasing := flags.String("variable-casing", string(config.CasingLanguageDefault), "variable casing style")
 	typeCasing := flags.String("type-casing", string(config.CasingLanguageDefault), "type casing style")
 	constantCasing := flags.String("constant-casing", string(config.CasingLanguageDefault), "constant casing style")
+	githubActionsPinned := flags.Bool("github-actions-pinned", false, "require GitHub workflow step actions to use full-length commit SHA pins")
 	version := flags.Bool("version", false, "print version")
 
 	if err := flags.Parse(invocation.Args); err != nil {
@@ -171,6 +182,9 @@ func Run(invocation Invocation) int {
 		cfg.Casing.Enabled = true
 		cfg.Casing.Constants = config.CasingStyle(*constantCasing)
 	}
+	if visited["github-actions-pinned"] {
+		cfg.GithubActionsPinned.Enabled = *githubActionsPinned
+	}
 
 	if err := config.Validate(cfg); err != nil {
 		fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
@@ -213,6 +227,34 @@ func Run(invocation Invocation) int {
 		}
 
 		diagnostics = append(diagnostics, fileDiagnostics...)
+	}
+	if cfg.GithubActionsPinned.Enabled {
+		workflowFiles, err := collectWorkflowFiles(workflowCollectionRequest{
+			Paths:    flags.Args(),
+			Explicit: len(flags.Args()) > 0,
+		})
+		if err != nil {
+			fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
+			return 2
+		}
+		for _, file := range workflowFiles {
+			source, err := os.ReadFile(file)
+			if err != nil {
+				fmt.Fprintf(invocation.Stderr, "vet: %s: %v\n", file, err)
+				return 2
+			}
+
+			fileDiagnostics, err := analyzer.AnalyzeWorkflowFile(goanalysis.AnalyzeWorkflowFileRequest{
+				Path:   file,
+				Source: source,
+			})
+			if err != nil {
+				fmt.Fprintf(invocation.Stderr, "vet: %s: %v\n", file, err)
+				return 2
+			}
+
+			diagnostics = append(diagnostics, fileDiagnostics...)
+		}
 	}
 
 	sortDiagnostics(diagnostics)
@@ -381,6 +423,102 @@ func (c *fileCollection) isExcluded(filePath string) bool {
 		}
 	}
 	return false
+}
+
+func collectWorkflowFiles(request workflowCollectionRequest) ([]string, error) {
+	collection := workflowCollection{
+		seen: make(map[string]bool),
+	}
+
+	if !request.Explicit {
+		if err := collection.addDefaultWorkflows(); err != nil {
+			return nil, err
+		}
+		sort.Strings(collection.files)
+		return collection.files, nil
+	}
+
+	for _, path := range request.Paths {
+		if err := collection.addExplicitPath(normalizePath(path)); err != nil {
+			return nil, err
+		}
+	}
+
+	sort.Strings(collection.files)
+	return collection.files, nil
+}
+
+func (c *workflowCollection) addDefaultWorkflows() error {
+	info, err := os.Stat(filepath.Join(".github", "workflows"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
+	return c.addWorkflowDir(filepath.Join(".github", "workflows"))
+}
+
+func (c *workflowCollection) addExplicitPath(path string) error {
+	if hasGlobSyntax(path) {
+		matches, err := filepath.Glob(path)
+		if err != nil {
+			return err
+		}
+		if len(matches) == 0 {
+			return fmt.Errorf("pattern matched no files: %s", path)
+		}
+		for _, match := range matches {
+			if err := c.addExplicitPath(match); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		c.addFile(path)
+		return nil
+	}
+
+	nested := filepath.Join(path, ".github", "workflows")
+	if nestedInfo, err := os.Stat(nested); err == nil && nestedInfo.IsDir() {
+		return c.addWorkflowDir(nested)
+	}
+	return c.addWorkflowDir(path)
+}
+
+func (c *workflowCollection) addWorkflowDir(path string) error {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		c.addFile(filepath.Join(path, entry.Name()))
+	}
+	return nil
+}
+
+func (c *workflowCollection) addFile(path string) {
+	if !isWorkflowFile(path) || c.seen[path] {
+		return
+	}
+	c.seen[path] = true
+	c.files = append(c.files, path)
+}
+
+func isWorkflowFile(path string) bool {
+	return strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml")
 }
 
 func normalizePath(path string) string {

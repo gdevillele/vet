@@ -43,6 +43,8 @@ rules:
       - generated_name
     ignore-patterns:
       - "^Test[A-Z]"
+  github-actions-pinned:
+    enabled: true
 "#,
     )
     .unwrap();
@@ -74,6 +76,7 @@ rules:
     assert_eq!(config.casing.constants, CasingStyle::SnakeUpperCase);
     assert_eq!(config.casing.ignore_names, vec!["generated_name"]);
     assert_eq!(config.casing.ignore_patterns, vec!["^Test[A-Z]"]);
+    assert!(config.github_actions_pinned.enabled);
 }
 
 #[test]
@@ -171,6 +174,23 @@ fn load_file_rejects_unknown_fields() {
 rules:
   source-file-header:
     minimum: 10
+"#,
+    )
+    .unwrap();
+
+    assert!(load_config(&path).is_err());
+}
+
+#[test]
+fn load_file_rejects_unknown_github_actions_pinned_fields() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("vet.yaml");
+    fs::write(
+        &path,
+        r#"version: 1
+rules:
+  github-actions-pinned:
+    pin: true
 "#,
     )
     .unwrap();

@@ -622,3 +622,143 @@ func Rejected() {}
 		t.Fatalf("expected VET010 diagnostic, got %q", stdout.String())
 	}
 }
+
+func TestRunGithubActionsPinnedScansDefaultWorkflows(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	workflowDir := filepath.Join(dir, ".github", "workflows")
+	if err := os.MkdirAll(workflowDir, 0o700); err != nil {
+		t.Fatalf("MkdirAll returned error: %v", err)
+	}
+	workflow := []byte(`name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+`)
+	if err := os.WriteFile(filepath.Join(workflowDir, "build.yml"), workflow, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"--github-actions-pinned"},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "VET014") {
+		t.Fatalf("expected VET014 diagnostic, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), `.github/workflows/build.yml`) {
+		t.Fatalf("expected default workflow path in diagnostic, got %q", stdout.String())
+	}
+}
+
+func TestRunGithubActionsPinnedHandlesMissingDefaultWorkflowDirectory(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"--github-actions-pinned"},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if stdout.String() != "" || stderr.String() != "" {
+		t.Fatalf("expected no output, got stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestRunGithubActionsPinnedAcceptsExplicitWorkflowPath(t *testing.T) {
+	dir := t.TempDir()
+	workflowPath := filepath.Join(dir, "build.yaml")
+	workflow := []byte(`name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout
+`)
+	if err := os.WriteFile(workflowPath, workflow, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"--github-actions-pinned", workflowPath},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "VET014") {
+		t.Fatalf("expected VET014 diagnostic, got %q", stdout.String())
+	}
+}
+
+func TestRunGithubActionsPinnedReportsSortedJSONDiagnostics(t *testing.T) {
+	dir := t.TempDir()
+	first := filepath.Join(dir, "a.yml")
+	second := filepath.Join(dir, "z.yml")
+	workflow := []byte(`name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+`)
+	if err := os.WriteFile(first, workflow, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	if err := os.WriteFile(second, workflow, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"--format", "json", "--github-actions-pinned", second, first},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if stderr.String() != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr.String())
+	}
+
+	var payload struct {
+		Diagnostics []struct {
+			RuleID string `json:"rule_id"`
+			File   string `json:"file"`
+		} `json:"diagnostics"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("Unmarshal returned error: %v; stdout=%q", err, stdout.String())
+	}
+	if len(payload.Diagnostics) != 2 {
+		t.Fatalf("expected 2 diagnostics, got %d: %q", len(payload.Diagnostics), stdout.String())
+	}
+	if payload.Diagnostics[0].RuleID != "VET014" || payload.Diagnostics[1].RuleID != "VET014" {
+		t.Fatalf("expected VET014 diagnostics, got %#v", payload.Diagnostics)
+	}
+	if payload.Diagnostics[0].File != first || payload.Diagnostics[1].File != second {
+		t.Fatalf("expected diagnostics sorted by file, got %#v", payload.Diagnostics)
+	}
+}

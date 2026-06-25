@@ -93,6 +93,8 @@ rules:
     constants: language-default
     ignore-names: []
     ignore-patterns: []
+  github-actions-pinned:
+    enabled: false
 languages:
   go:
     files:
@@ -163,6 +165,7 @@ Additional strictness flags:
 --variable-casing language-default
 --type-casing language-default
 --constant-casing language-default
+--github-actions-pinned
 ```
 
 The docstring policy accepts `forbidden`, `optional`, or `mandatory`.
@@ -170,6 +173,13 @@ Indent type accepts `tabs`, `spaces`, or `language-default`.
 Casing styles accept `off`, `language-default`, `camelCase`,
 `UpperCamelCase`, `snake_case`, or `SNAKE_CASE_FULL_CAPS`. The casing rule is
 disabled by default.
+
+`--github-actions-pinned` enables `VET014`, which scans GitHub workflow files
+under `.github/workflows/*.yml` and `.github/workflows/*.yaml` by default.
+Explicit workflow files or workflow directories can also be passed as paths.
+The rule checks only `jobs.<job>.steps[*].uses`: external actions must use a
+40-character hexadecimal commit SHA after `@`; local `./...` actions, Docker
+`docker://...` actions, and job-level reusable workflow calls are ignored.
 
 ## Architecture Decision
 

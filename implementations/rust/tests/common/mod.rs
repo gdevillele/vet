@@ -3,7 +3,7 @@
 use std::{env, path::Path, sync::Mutex};
 
 use vet::{
-    analysis::{AnalyzeFileRequest, Analyzer},
+    analysis::{AnalyzeFileRequest, AnalyzeWorkflowFileRequest, Analyzer},
     config::Config,
 };
 
@@ -13,6 +13,15 @@ pub fn analyze(config: Config, source: &str) -> Vec<vet::diagnostic::Diagnostic>
     Analyzer::new(config)
         .analyze_file(AnalyzeFileRequest {
             path: "sample.rs".to_string(),
+            source: source.to_string(),
+        })
+        .unwrap()
+}
+
+pub fn analyze_workflow(config: Config, source: &str) -> Vec<vet::diagnostic::Diagnostic> {
+    Analyzer::new(config)
+        .analyze_workflow_file(AnalyzeWorkflowFileRequest {
+            path: "workflow.yml".to_string(),
             source: source.to_string(),
         })
         .unwrap()

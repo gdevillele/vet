@@ -36,6 +36,7 @@ struct CLIOptions {
     var variableCasing: CasingStyle?
     var typeCasing: CasingStyle?
     var constantCasing: CasingStyle?
+    var githubActionsPinned: Bool?
     var version = false
     var paths: [String] = []
 }
@@ -52,6 +53,11 @@ struct RenderRequest {
 struct FileCollectionRequest {
     let paths: [String]
     let exclude: [String]
+}
+
+struct WorkflowCollectionRequest {
+    let paths: [String]
+    let explicit: Bool
 }
 
 struct DiagnosticSortRequest {
@@ -96,14 +102,15 @@ public enum CLI {
             return 2
         }
 
+        let explicitPaths = options.paths
         let selection: FileCollectionRequest
-        if options.paths.isEmpty {
+        if explicitPaths.isEmpty {
             selection = FileCollectionRequest(
                 paths: config.fileSelection.files.isEmpty ? ["."] : config.fileSelection.files,
                 exclude: config.fileSelection.exclude
             )
         } else {
-            selection = FileCollectionRequest(paths: options.paths, exclude: [])
+            selection = FileCollectionRequest(paths: explicitPaths, exclude: [])
         }
 
         let files: [String]
@@ -123,6 +130,32 @@ public enum CLI {
             } catch {
                 invocation.stderr("vet: \(file): \(error)\n")
                 return 2
+            }
+        }
+        if config.githubActionsPinned.enabled {
+            let workflowFiles: [String]
+            do {
+                workflowFiles = try collectWorkflowFiles(WorkflowCollectionRequest(
+                    paths: explicitPaths,
+                    explicit: !explicitPaths.isEmpty
+                ))
+            } catch {
+                invocation.stderr("vet: \(error)\n")
+                return 2
+            }
+
+            let workflowAnalyzer = GitHubActionsAnalyzer(config: config)
+            for file in workflowFiles {
+                do {
+                    let source = try String(contentsOfFile: file, encoding: .utf8)
+                    diagnostics.append(contentsOf: try workflowAnalyzer.analyzeFile(AnalyzeWorkflowFileRequest(
+                        path: file,
+                        source: source
+                    )))
+                } catch {
+                    invocation.stderr("vet: \(file): \(error)\n")
+                    return 2
+                }
             }
         }
 
@@ -214,6 +247,8 @@ public enum CLI {
             case "--constant-casing", "-constant-casing":
                 cursor += 1
                 options.constantCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
+            case "--github-actions-pinned", "-github-actions-pinned":
+                options.githubActionsPinned = true
             case "--version", "-version":
                 options.version = true
             default:
@@ -320,6 +355,9 @@ public enum CLI {
             config.casing.enabled = true
             config.casing.constants = style
         }
+        if let enabled = request.options.githubActionsPinned {
+            config.githubActionsPinned.enabled = enabled
+        }
         return config
     }
 
@@ -327,6 +365,19 @@ public enum CLI {
         var collector = FileCollector(exclude: request.exclude)
         for path in request.paths {
             try collector.addPath(normalizePath(path))
+        }
+        return collector.files.sorted()
+    }
+
+    private static func collectWorkflowFiles(_ request: WorkflowCollectionRequest) throws -> [String] {
+        var collector = WorkflowFileCollector()
+        if !request.explicit {
+            try collector.addDefaultWorkflows()
+            return collector.files.sorted()
+        }
+
+        for path in request.paths {
+            try collector.addExplicitPath(normalizePath(path))
         }
         return collector.files.sorted()
     }
@@ -479,6 +530,109 @@ struct FileCollector {
         }
         return matches
     }
+}
+
+struct WorkflowFileCollector {
+    var files: [String] = []
+    var seen: Set<String> = []
+
+    mutating func addDefaultWorkflows() throws {
+        let path = ".github/workflows"
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return
+        }
+
+        try addWorkflowDirectory(path)
+    }
+
+    mutating func addExplicitPath(_ path: String) throws {
+        if hasGlobSyntax(path) {
+            let matches = try expandGlob(path)
+            if matches.isEmpty {
+                throw CLIError.message("pattern matched no files: \(path)")
+            }
+            for match in matches {
+                try addExplicitPath(match)
+            }
+            return
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            throw CLIError.message("path does not exist: \(path)")
+        }
+
+        if isDirectory.boolValue {
+            let nested = (path as NSString).appendingPathComponent(".github/workflows")
+            var nestedIsDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: nested, isDirectory: &nestedIsDirectory),
+               nestedIsDirectory.boolValue {
+                try addWorkflowDirectory(nested)
+            } else {
+                try addWorkflowDirectory(path)
+            }
+        } else {
+            addFile(path)
+        }
+    }
+
+    private mutating func addWorkflowDirectory(_ path: String) throws {
+        let entries = try FileManager.default.contentsOfDirectory(atPath: path)
+        for entry in entries {
+            var isDirectory: ObjCBool = false
+            let child = (path as NSString).appendingPathComponent(entry)
+            if FileManager.default.fileExists(atPath: child, isDirectory: &isDirectory),
+               isDirectory.boolValue {
+                continue
+            }
+            addFile(child)
+        }
+    }
+
+    private mutating func addFile(_ path: String) {
+        guard isWorkflowFile(path) && !seen.contains(path) else {
+            return
+        }
+
+        seen.insert(path)
+        files.append(path)
+    }
+
+    private func hasGlobSyntax(_ path: String) -> Bool {
+        path.contains("*") || path.contains("?") || path.contains("[")
+    }
+
+    private func expandGlob(_ pattern: String) throws -> [String] {
+        var results = glob_t()
+        let status = glob(pattern, 0, nil, &results)
+        defer {
+            globfree(&results)
+        }
+
+        if status == GLOB_NOMATCH {
+            return []
+        }
+        if status != 0 {
+            throw CLIError.message("invalid file pattern: \(pattern)")
+        }
+
+        var matches: [String] = []
+        guard let paths = results.gl_pathv else {
+            return matches
+        }
+        for index in 0..<Int(results.gl_pathc) {
+            if let path = paths[index] {
+                matches.append(String(cString: path))
+            }
+        }
+        return matches
+    }
+}
+
+func isWorkflowFile(_ path: String) -> Bool {
+    path.hasSuffix(".yml") || path.hasSuffix(".yaml")
 }
 
 func patternMatches(_ pattern: String, _ filePath: String) -> Bool {

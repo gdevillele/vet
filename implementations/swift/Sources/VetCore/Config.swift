@@ -9,6 +9,7 @@ public struct VetConfig: Equatable {
     public var functionDocstring: FunctionDocstringRule
     public var indent: IndentRule
     public var casing: CasingRule
+    public var githubActionsPinned: GithubActionsPinnedRule
     public var fileSelection: FileSelection
 
     public static func `default`() -> VetConfig {
@@ -28,6 +29,7 @@ public struct VetConfig: Equatable {
                 ignoreNames: [],
                 ignorePatterns: []
             ),
+            githubActionsPinned: GithubActionsPinnedRule(enabled: false),
             fileSelection: FileSelection(files: [], exclude: [])
         )
     }
@@ -92,6 +94,10 @@ public struct CasingRule: Equatable {
     public var ignorePatterns: [String]
 }
 
+public struct GithubActionsPinnedRule: Equatable {
+    public var enabled: Bool
+}
+
 public struct FileSelection: Equatable {
     public var files: [String]
     public var exclude: [String]
@@ -129,6 +135,7 @@ struct RulesFile: Decodable {
     let functionDocstring: FunctionDocstringFile?
     let indent: IndentFile?
     let casing: CasingFile?
+    let githubActionsPinned: GithubActionsPinnedFile?
 
     enum CodingKeys: String, CodingKey {
         case maxFunctionParameters = "max-function-parameters"
@@ -138,6 +145,7 @@ struct RulesFile: Decodable {
         case functionDocstring = "function-docstring"
         case indent
         case casing
+        case githubActionsPinned = "github-actions-pinned"
     }
 }
 
@@ -192,6 +200,49 @@ struct CasingFile: Decodable {
         case constants
         case ignoreNames = "ignore-names"
         case ignorePatterns = "ignore-patterns"
+    }
+}
+
+struct GithubActionsPinnedFile: Decodable {
+    let enabled: Bool?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case enabled
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(
+            decoder: decoder,
+            allowed: Set(CodingKeys.allCases.map(\.stringValue))
+        )
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+    }
+}
+
+struct AnyCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        intValue = nil
+    }
+
+    init?(intValue: Int) {
+        stringValue = "\(intValue)"
+        self.intValue = intValue
+    }
+}
+
+func rejectUnknownKeys(decoder: Decoder, allowed: Set<String>) throws {
+    let container = try decoder.container(keyedBy: AnyCodingKey.self)
+    for key in container.allKeys where !allowed.contains(key.stringValue) {
+        throw DecodingError.dataCorruptedError(
+            forKey: key,
+            in: container,
+            debugDescription: "unknown field \(key.stringValue)"
+        )
     }
 }
 
@@ -307,6 +358,12 @@ public enum ConfigLoader {
             }
             if let ignorePatterns = rule.ignorePatterns {
                 result.casing.ignorePatterns = ignorePatterns
+            }
+        }
+
+        if let rule = rules.githubActionsPinned {
+            if let enabled = rule.enabled {
+                result.githubActionsPinned.enabled = enabled
             }
         }
 

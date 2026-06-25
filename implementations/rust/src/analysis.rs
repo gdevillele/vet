@@ -3,6 +3,7 @@ use crate::{
     diagnostic::{diagnostic_at_offset, Diagnostic},
 };
 use regex::Regex;
+use saphyr::{LoadableYamlNode, MarkedYaml, YamlData};
 use std::collections::HashSet;
 use syn::{
     visit::{self, Visit},
@@ -24,12 +25,18 @@ pub const RULE_FUNCTION_CASING: &str = "VET010";
 pub const RULE_VARIABLE_CASING: &str = "VET011";
 pub const RULE_TYPE_CASING: &str = "VET012";
 pub const RULE_CONSTANT_CASING: &str = "VET013";
+pub const RULE_GITHUB_ACTIONS_PINNED: &str = "VET014";
 
 pub struct Analyzer {
     config: Config,
 }
 
 pub struct AnalyzeFileRequest {
+    pub path: String,
+    pub source: String,
+}
+
+pub struct AnalyzeWorkflowFileRequest {
     pub path: String,
     pub source: String,
 }
@@ -69,6 +76,23 @@ impl Analyzer {
         };
         visitor.visit_file(&file);
         diagnostics.extend(visitor.diagnostics);
+
+        Ok(diagnostics)
+    }
+
+    pub fn analyze_workflow_file(
+        &self,
+        request: AnalyzeWorkflowFileRequest,
+    ) -> Result<Vec<Diagnostic>, saphyr::ScanError> {
+        if !self.config.github_actions_pinned.enabled {
+            return Ok(Vec::new());
+        }
+
+        let documents = MarkedYaml::load_from_str(&request.source)?;
+        let mut diagnostics = Vec::new();
+        for document in &documents {
+            diagnostics.extend(check_workflow_jobs(&request.path, document));
+        }
 
         Ok(diagnostics)
     }
@@ -207,6 +231,69 @@ impl Analyzer {
 
         diagnostics
     }
+}
+
+fn check_workflow_jobs(path: &str, document: &MarkedYaml<'_>) -> Vec<Diagnostic> {
+    let Some(jobs) = yaml_mapping_value(document, "jobs") else {
+        return Vec::new();
+    };
+    let Some(jobs_mapping) = yaml_data(jobs).as_mapping() else {
+        return Vec::new();
+    };
+
+    let mut diagnostics = Vec::new();
+    for (_job_name, job) in jobs_mapping {
+        let Some(steps) = yaml_mapping_value(job, "steps") else {
+            continue;
+        };
+        let Some(step_items) = yaml_data(steps).as_vec() else {
+            continue;
+        };
+
+        for step in step_items {
+            let Some(uses) = yaml_mapping_value(step, "uses") else {
+                continue;
+            };
+            let Some(action) = yaml_data(uses).as_str() else {
+                continue;
+            };
+            if github_action_pinned(action) {
+                continue;
+            }
+
+            diagnostics.push(Diagnostic::new(
+                RULE_GITHUB_ACTIONS_PINNED,
+                format!("GitHub action {action:?} must be pinned to a full-length commit SHA"),
+                path,
+                uses.span.start.line(),
+                uses.span.start.col(),
+            ));
+        }
+    }
+
+    diagnostics
+}
+
+fn yaml_mapping_value<'a>(node: &'a MarkedYaml<'a>, key: &str) -> Option<&'a MarkedYaml<'a>> {
+    yaml_data(node).as_mapping_get(key)
+}
+
+fn yaml_data<'a>(node: &'a MarkedYaml<'a>) -> &'a YamlData<'a, MarkedYaml<'a>> {
+    match &node.data {
+        YamlData::Tagged(_, inner) => yaml_data(inner),
+        data => data,
+    }
+}
+
+fn github_action_pinned(action: &str) -> bool {
+    if action.starts_with("./") || action.starts_with("docker://") {
+        return true;
+    }
+
+    let Some((_, reference)) = action.rsplit_once('@') else {
+        return false;
+    };
+    reference.len() == 40 && reference.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
 struct RustVisitor<'a> {

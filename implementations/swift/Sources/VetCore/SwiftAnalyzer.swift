@@ -14,9 +14,20 @@ public enum RuleID {
     public static let variableCasing = "VET011"
     public static let typeCasing = "VET012"
     public static let constantCasing = "VET013"
+    public static let githubActionsPinned = "VET014"
 }
 
 public struct AnalyzeFileRequest {
+    public let path: String
+    public let source: String
+
+    public init(path: String, source: String) {
+        self.path = path
+        self.source = source
+    }
+}
+
+public struct AnalyzeWorkflowFileRequest {
     public let path: String
     public let source: String
 

@@ -445,3 +445,130 @@ func TestAccepted() {}
 		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
 	}
 }
+
+func TestAnalyzeWorkflowFileReportsUnpinnedGitHubActions(t *testing.T) {
+	cfg := config.Default()
+	cfg.GithubActionsPinned.Enabled = true
+
+	tests := []struct {
+		name   string
+		action string
+	}{
+		{name: "tag", action: "actions/checkout@v5"},
+		{name: "branch", action: "actions/checkout@main"},
+		{name: "missing-ref", action: "actions/checkout"},
+		{name: "short-sha", action: "actions/checkout@f43a0e5ff2bd"},
+		{name: "non-hex-40", action: "actions/checkout@zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			diagnostics, err := New(cfg).AnalyzeWorkflowFile(AnalyzeWorkflowFileRequest{
+				Path: "workflow.yml",
+				Source: []byte(`name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ` + test.action + `
+`),
+			})
+			if err != nil {
+				t.Fatalf("AnalyzeWorkflowFile returned error: %v", err)
+			}
+			if len(diagnostics) != 1 {
+				t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
+			}
+			if diagnostics[0].RuleID != RuleGithubActionsPinned {
+				t.Fatalf("expected rule %q, got %q", RuleGithubActionsPinned, diagnostics[0].RuleID)
+			}
+			if diagnostics[0].Line != 6 {
+				t.Fatalf("expected diagnostic on line 6, got %d", diagnostics[0].Line)
+			}
+		})
+	}
+}
+
+func TestAnalyzeWorkflowFileAcceptsPinnedAndIgnoredGitHubActions(t *testing.T) {
+	cfg := config.Default()
+	cfg.GithubActionsPinned.Enabled = true
+
+	tests := []struct {
+		name   string
+		source string
+	}{
+		{
+			name: "full-sha",
+			source: `name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+`,
+		},
+		{
+			name: "full-sha-uppercase",
+			source: `name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@F43A0E5FF2BD294095638E18286CA9A3D1956744
+`,
+		},
+		{
+			name: "nested-action-path",
+			source: `name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: owner/repo/path/to/action@f43a0e5ff2bd294095638e18286ca9a3d1956744
+`,
+		},
+		{
+			name: "local-action",
+			source: `name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/build
+`,
+		},
+		{
+			name: "docker-action",
+			source: `name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker://alpine:3.19
+`,
+		},
+		{
+			name: "reusable-workflow",
+			source: `name: test
+jobs:
+  call:
+    uses: owner/repo/.github/workflows/build.yml@main
+`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			diagnostics, err := New(cfg).AnalyzeWorkflowFile(AnalyzeWorkflowFileRequest{
+				Path:   "workflow.yml",
+				Source: []byte(test.source),
+			})
+			if err != nil {
+				t.Fatalf("AnalyzeWorkflowFile returned error: %v", err)
+			}
+			if len(diagnostics) != 0 {
+				t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
+			}
+		})
+	}
+}

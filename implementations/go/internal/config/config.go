@@ -19,6 +19,7 @@ type Config struct {
 	FunctionDocstring     FunctionDocstringRule
 	Indent                IndentRule
 	Casing                CasingRule
+	GithubActionsPinned   GithubActionsPinnedRule
 	FileSelection         FileSelection
 }
 
@@ -87,6 +88,10 @@ type CasingRule struct {
 	IgnorePatterns []string
 }
 
+type GithubActionsPinnedRule struct {
+	Enabled bool
+}
+
 type FileSelection struct {
 	Files   []string
 	Exclude []string
@@ -118,6 +123,7 @@ type rulesFile struct {
 	FunctionDocstring     *functionDocstringFile     `yaml:"function-docstring"`
 	Indent                *indentFile                `yaml:"indent"`
 	Casing                *casingFile                `yaml:"casing"`
+	GithubActionsPinned   *githubActionsPinnedFile   `yaml:"github-actions-pinned"`
 }
 
 type maxFunctionParametersFile struct {
@@ -158,6 +164,10 @@ type casingFile struct {
 	IgnorePatterns []string     `yaml:"ignore-patterns"`
 }
 
+type githubActionsPinnedFile struct {
+	Enabled *bool `yaml:"enabled"`
+}
+
 func Default() Config {
 	return Config{
 		MaxFunctionParameters: MaxFunctionParametersRule{
@@ -188,6 +198,9 @@ func Default() Config {
 			Variables: CasingLanguageDefault,
 			Types:     CasingLanguageDefault,
 			Constants: CasingLanguageDefault,
+		},
+		GithubActionsPinned: GithubActionsPinnedRule{
+			Enabled: false,
 		},
 	}
 }
@@ -305,6 +318,13 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		}
 		if rule.IgnorePatterns != nil {
 			result.Casing.IgnorePatterns = rule.IgnorePatterns
+		}
+	}
+
+	if rules.GithubActionsPinned != nil {
+		rule := rules.GithubActionsPinned
+		if rule.Enabled != nil {
+			result.GithubActionsPinned.Enabled = *rule.Enabled
 		}
 	}
 

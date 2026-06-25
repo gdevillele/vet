@@ -36,6 +36,8 @@ rules:
       - generated_name
     ignore-patterns:
       - "^Test[A-Z]"
+  github-actions-pinned:
+    enabled: true
 `)
 
 	if err := os.WriteFile(path, data, 0o600); err != nil {
@@ -100,6 +102,9 @@ rules:
 	}
 	if len(cfg.Casing.IgnorePatterns) != 1 || cfg.Casing.IgnorePatterns[0] != "^Test[A-Z]" {
 		t.Fatalf("expected casing ignore patterns to load, got %#v", cfg.Casing.IgnorePatterns)
+	}
+	if !cfg.GithubActionsPinned.Enabled {
+		t.Fatalf("expected github-actions-pinned rule to be enabled")
 	}
 }
 
@@ -217,6 +222,23 @@ rules:
 
 	if _, err := LoadFile(LoadFileRequest{Path: path, Base: Default()}); err == nil {
 		t.Fatalf("expected LoadFile to reject unknown field")
+	}
+}
+
+func TestLoadFileRejectsUnknownGithubActionsPinnedFields(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vet.yaml")
+	data := []byte(`version: 1
+rules:
+  github-actions-pinned:
+    pin: true
+`)
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	if _, err := LoadFile(LoadFileRequest{Path: path, Base: Default()}); err == nil {
+		t.Fatalf("expected LoadFile to reject unknown github-actions-pinned field")
 	}
 }
 

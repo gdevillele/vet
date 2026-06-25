@@ -132,3 +132,11 @@ language default uses `camelCase` for functions, variables, and constants, and
 `UpperCamelCase` for types. Rust's language default uses `snake_case` for
 functions and variables, `UpperCamelCase` for types, and
 `SNAKE_CASE_FULL_CAPS` for constants.
+
+`VET014` enforces pinned GitHub Actions step references when explicitly enabled.
+It scans workflow files under `.github/workflows/*.yml` and
+`.github/workflows/*.yaml` by default, and checks only
+`jobs.<job>.steps[*].uses`. External actions must use a full 40-character
+hexadecimal commit SHA after `@`. Local `./...` actions, Docker `docker://...`
+actions, and job-level reusable workflow calls are outside the first-version
+scope.

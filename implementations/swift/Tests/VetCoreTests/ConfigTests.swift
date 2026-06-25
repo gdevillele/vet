@@ -35,6 +35,8 @@ final class ConfigTests: XCTestCase {
               - generated_name
             ignore-patterns:
               - "^Test[A-Z]"
+          github-actions-pinned:
+            enabled: true
         """
 
         try yaml.write(to: configPath, atomically: true, encoding: .utf8)
@@ -61,6 +63,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(config.casing.constants, .snakeUpperCase)
         XCTAssertEqual(config.casing.ignoreNames, ["generated_name"])
         XCTAssertEqual(config.casing.ignorePatterns, ["^Test[A-Z]"])
+        XCTAssertTrue(config.githubActionsPinned.enabled)
     }
 
     func testLoadFileAppliesLanguageOverrides() throws {
@@ -139,6 +142,24 @@ final class ConfigTests: XCTestCase {
         ))
 
         XCTAssertEqual(config.maxFunctionParameters.max, 3)
+    }
+
+    func testLoadFileRejectsUnknownGithubActionsPinnedFields() throws {
+        let directory = temporaryDirectory()
+        let configPath = directory.appendingPathComponent("vet.yaml")
+        let yaml = """
+        version: 1
+        rules:
+          github-actions-pinned:
+            pin: true
+        """
+
+        try yaml.write(to: configPath, atomically: true, encoding: .utf8)
+
+        XCTAssertThrowsError(try ConfigLoader.load(ConfigLoadRequest(
+            path: configPath.path,
+            base: .default()
+        )))
     }
 
     func testValidateRejectsInvalidHeaderBounds() {

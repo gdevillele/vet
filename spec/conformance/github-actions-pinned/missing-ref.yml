@@ -1,0 +1,6 @@
+name: missing-ref
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout
