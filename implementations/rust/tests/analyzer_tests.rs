@@ -3,14 +3,15 @@ mod common;
 use vet::{
     analysis::{
         RULE_CONSTANT_CASING, RULE_FUNCTION_BODY_LINES, RULE_FUNCTION_CASING,
-        RULE_FUNCTION_DOCSTRING, RULE_INDENT_TYPE, RULE_INDENT_WIDTH, RULE_MAX_FUNCTION_PARAMETERS,
-        RULE_SOURCE_FILE_HEADER_MAX, RULE_SOURCE_FILE_HEADER_MIN, RULE_SOURCE_FILE_HEADER_REQUIRED,
-        RULE_SOURCE_FILE_LINES, RULE_TYPE_CASING, RULE_VARIABLE_CASING,
+        RULE_FUNCTION_DOCSTRING, RULE_GITHUB_ACTIONS_PINNED, RULE_INDENT_TYPE, RULE_INDENT_WIDTH,
+        RULE_MAX_FUNCTION_PARAMETERS, RULE_SOURCE_FILE_HEADER_MAX, RULE_SOURCE_FILE_HEADER_MIN,
+        RULE_SOURCE_FILE_HEADER_REQUIRED, RULE_SOURCE_FILE_LINES, RULE_TYPE_CASING,
+        RULE_VARIABLE_CASING,
     },
     config::{CasingStyle, Config, FunctionDocstringPolicy, IndentType},
 };
 
-use common::analyze;
+use common::{analyze, analyze_workflow};
 
 #[test]
 fn reports_functions_with_too_many_parameters() {
@@ -301,4 +302,109 @@ fn honors_casing_ignores() {
     let diagnostics = analyze(config, "fn TestAccepted() {}\n");
 
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
+fn reports_unpinned_github_actions() {
+    let mut config = Config::default();
+    config.github_actions_pinned.enabled = true;
+
+    for (name, action) in [
+        ("tag", "actions/checkout@v5"),
+        ("branch", "actions/checkout@main"),
+        ("missing-ref", "actions/checkout"),
+        ("short-sha", "actions/checkout@f43a0e5ff2bd"),
+        (
+            "non-hex-40",
+            "actions/checkout@zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        ),
+    ] {
+        let diagnostics = analyze_workflow(
+            config.clone(),
+            &format!(
+                r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: {action}
+"#
+            ),
+        );
+
+        assert_eq!(diagnostics.len(), 1, "{name}: {diagnostics:#?}");
+        assert_eq!(diagnostics[0].rule_id, RULE_GITHUB_ACTIONS_PINNED);
+        assert_eq!(diagnostics[0].line, 6);
+    }
+}
+
+#[test]
+fn accepts_pinned_and_ignored_github_actions() {
+    let mut config = Config::default();
+    config.github_actions_pinned.enabled = true;
+
+    for (name, source) in [
+        (
+            "full-sha",
+            r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+"#,
+        ),
+        (
+            "full-sha-uppercase",
+            r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@F43A0E5FF2BD294095638E18286CA9A3D1956744
+"#,
+        ),
+        (
+            "nested-action-path",
+            r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: owner/repo/path/to/action@f43a0e5ff2bd294095638e18286ca9a3d1956744
+"#,
+        ),
+        (
+            "local-action",
+            r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/build
+"#,
+        ),
+        (
+            "docker-action",
+            r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker://alpine:3.19
+"#,
+        ),
+        (
+            "reusable-workflow",
+            r#"name: test
+jobs:
+  call:
+    uses: owner/repo/.github/workflows/build.yml@main
+"#,
+        ),
+    ] {
+        let diagnostics = analyze_workflow(config.clone(), source);
+
+        assert!(diagnostics.is_empty(), "{name}: {diagnostics:#?}");
+    }
 }

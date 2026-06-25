@@ -24,6 +24,8 @@ rules:
     constants: language-default
     ignore-names: []
     ignore-patterns: []
+  github-actions-pinned:
+    enabled: false
 languages:
   go:
     files:

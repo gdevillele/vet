@@ -396,6 +396,123 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(stderr, "")
     }
 
+    func testRunGithubActionsPinnedScansDefaultWorkflows() throws {
+        let directory = temporaryDirectory()
+        let workflowDirectory = directory.appendingPathComponent(".github/workflows")
+        try FileManager.default.createDirectory(at: workflowDirectory, withIntermediateDirectories: true)
+        let workflow = workflowDirectory.appendingPathComponent("build.yml")
+        try """
+        name: test
+        jobs:
+          build:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout@v5
+        """.write(to: workflow, atomically: true, encoding: .utf8)
+
+        let originalDirectory = FileManager.default.currentDirectoryPath
+        defer {
+            _ = FileManager.default.changeCurrentDirectoryPath(originalDirectory)
+        }
+        XCTAssertTrue(FileManager.default.changeCurrentDirectoryPath(directory.path))
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--github-actions-pinned"],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertTrue(stdout.contains("VET014"))
+        XCTAssertTrue(stdout.contains(".github/workflows/build.yml"))
+        XCTAssertEqual(stderr, "")
+    }
+
+    func testRunGithubActionsPinnedHandlesMissingDefaultWorkflowDirectory() throws {
+        let directory = temporaryDirectory()
+        let originalDirectory = FileManager.default.currentDirectoryPath
+        defer {
+            _ = FileManager.default.changeCurrentDirectoryPath(originalDirectory)
+        }
+        XCTAssertTrue(FileManager.default.changeCurrentDirectoryPath(directory.path))
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--github-actions-pinned"],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 0)
+        XCTAssertEqual(stdout, "")
+        XCTAssertEqual(stderr, "")
+    }
+
+    func testRunGithubActionsPinnedAcceptsExplicitWorkflowPath() throws {
+        let directory = temporaryDirectory()
+        let workflow = directory.appendingPathComponent("build.yaml")
+        try """
+        name: test
+        jobs:
+          build:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout
+        """.write(to: workflow, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--github-actions-pinned", workflow.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertTrue(stdout.contains("VET014"))
+        XCTAssertEqual(stderr, "")
+    }
+
+    func testRunGithubActionsPinnedReportsSortedJSONDiagnostics() throws {
+        let directory = temporaryDirectory()
+        let first = directory.appendingPathComponent("a.yml")
+        let second = directory.appendingPathComponent("z.yml")
+        let workflow = """
+        name: test
+        jobs:
+          build:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout@main
+        """
+        try workflow.write(to: first, atomically: true, encoding: .utf8)
+        try workflow.write(to: second, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--format", "json", "--github-actions-pinned", second.path, first.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertEqual(stderr, "")
+
+        let data = try XCTUnwrap(stdout.data(using: .utf8))
+        let object = try JSONSerialization.jsonObject(with: data)
+        let payload = try XCTUnwrap(object as? [String: Any])
+        let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [[String: Any]])
+        XCTAssertEqual(diagnostics.count, 2)
+        XCTAssertEqual(diagnostics[0]["rule_id"] as? String, "VET014")
+        XCTAssertEqual(diagnostics[1]["rule_id"] as? String, "VET014")
+        XCTAssertEqual(diagnostics[0]["file"] as? String, first.path)
+        XCTAssertEqual(diagnostics[1]["file"] as? String, second.path)
+    }
+
     private func temporaryDirectory() -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

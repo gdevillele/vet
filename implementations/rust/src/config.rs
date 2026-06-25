@@ -13,6 +13,7 @@ pub struct Config {
     pub function_docstring: FunctionDocstringRule,
     pub indent: IndentRule,
     pub casing: CasingRule,
+    pub github_actions_pinned: GithubActionsPinnedRule,
     pub file_selection: FileSelection,
 }
 
@@ -107,6 +108,11 @@ pub struct CasingRule {
     pub ignore_patterns: Vec<String>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GithubActionsPinnedRule {
+    pub enabled: bool,
+}
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FileSelection {
     pub files: Vec<String>,
@@ -171,6 +177,8 @@ struct RulesFile {
     function_docstring: Option<FunctionDocstringFile>,
     indent: Option<IndentFile>,
     casing: Option<CasingFile>,
+    #[serde(rename = "github-actions-pinned")]
+    github_actions_pinned: Option<GithubActionsPinnedFile>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -229,6 +237,12 @@ struct CasingFile {
     ignore_patterns: Option<Vec<String>>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GithubActionsPinnedFile {
+    enabled: Option<bool>,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -259,6 +273,7 @@ impl Default for Config {
                 ignore_names: Vec::new(),
                 ignore_patterns: Vec::new(),
             },
+            github_actions_pinned: GithubActionsPinnedRule { enabled: false },
             file_selection: FileSelection::default(),
         }
     }
@@ -364,6 +379,12 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
         }
         if let Some(ignore_patterns) = &rule.ignore_patterns {
             config.casing.ignore_patterns = ignore_patterns.clone();
+        }
+    }
+
+    if let Some(rule) = &rules.github_actions_pinned {
+        if let Some(enabled) = rule.enabled {
+            config.github_actions_pinned.enabled = enabled;
         }
     }
 

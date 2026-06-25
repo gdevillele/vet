@@ -431,3 +431,108 @@ fn run_reports_casing_diagnostics() {
     assert!(stdout.contains("VET010"), "{stdout:?}");
     assert_eq!(stderr, "");
 }
+
+#[test]
+fn run_github_actions_pinned_scans_default_workflows() {
+    let dir = TempDir::new().unwrap();
+    let workflow_dir = dir.path().join(".github").join("workflows");
+    fs::create_dir_all(&workflow_dir).unwrap();
+    fs::write(
+        workflow_dir.join("build.yml"),
+        r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+"#,
+    )
+    .unwrap();
+
+    let (code, stdout, stderr) =
+        run_cli_in_dir(dir.path(), ["--github-actions-pinned".to_string()]);
+
+    assert_eq!(code, 1, "stdout={stdout:?} stderr={stderr:?}");
+    assert!(stdout.contains("VET014"), "{stdout:?}");
+    assert!(stdout.contains(".github/workflows/build.yml"), "{stdout:?}");
+    assert_eq!(stderr, "");
+}
+
+#[test]
+fn run_github_actions_pinned_handles_missing_default_workflow_directory() {
+    let dir = TempDir::new().unwrap();
+
+    let (code, stdout, stderr) =
+        run_cli_in_dir(dir.path(), ["--github-actions-pinned".to_string()]);
+
+    assert_eq!(code, 0, "stdout={stdout:?} stderr={stderr:?}");
+    assert_eq!(stdout, "");
+    assert_eq!(stderr, "");
+}
+
+#[test]
+fn run_github_actions_pinned_accepts_explicit_workflow_path() {
+    let dir = TempDir::new().unwrap();
+    let workflow = dir.path().join("build.yaml");
+    fs::write(
+        &workflow,
+        r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout
+"#,
+    )
+    .unwrap();
+
+    let (code, stdout, stderr) = run_cli([
+        "--github-actions-pinned".to_string(),
+        path_string(&workflow),
+    ]);
+
+    assert_eq!(code, 1, "stdout={stdout:?} stderr={stderr:?}");
+    assert!(stdout.contains("VET014"), "{stdout:?}");
+    assert_eq!(stderr, "");
+}
+
+#[test]
+fn run_github_actions_pinned_reports_sorted_json_diagnostics() {
+    let dir = TempDir::new().unwrap();
+    let first = dir.path().join("a.yml");
+    let second = dir.path().join("z.yml");
+    let workflow = r#"name: test
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@main
+"#;
+    fs::write(&first, workflow).unwrap();
+    fs::write(&second, workflow).unwrap();
+
+    let (code, stdout, stderr) = run_cli([
+        "--format".to_string(),
+        "json".to_string(),
+        "--github-actions-pinned".to_string(),
+        path_string(&second),
+        path_string(&first),
+    ]);
+
+    assert_eq!(code, 1, "stdout={stdout:?} stderr={stderr:?}");
+    assert_eq!(stderr, "");
+
+    let payload: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+    let diagnostics = payload["diagnostics"].as_array().unwrap();
+    assert_eq!(diagnostics.len(), 2, "{stdout:?}");
+    assert_eq!(diagnostics[0]["rule_id"].as_str().unwrap(), "VET014");
+    assert_eq!(diagnostics[1]["rule_id"].as_str().unwrap(), "VET014");
+    assert_eq!(
+        diagnostics[0]["file"].as_str().unwrap(),
+        path_string(&first)
+    );
+    assert_eq!(
+        diagnostics[1]["file"].as_str().unwrap(),
+        path_string(&second)
+    );
+}

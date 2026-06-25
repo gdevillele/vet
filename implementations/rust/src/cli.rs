@@ -34,6 +34,7 @@ struct CliOptions {
     variable_casing: Option<CasingStyle>,
     type_casing: Option<CasingStyle>,
     constant_casing: Option<CasingStyle>,
+    github_actions_pinned: Option<bool>,
     version: bool,
     paths: Vec<String>,
 }
@@ -47,6 +48,16 @@ struct FileCollector {
     files: Vec<String>,
     seen: BTreeSet<String>,
     exclude: Vec<String>,
+}
+
+struct WorkflowCollectionRequest {
+    paths: Vec<String>,
+    explicit: bool,
+}
+
+struct WorkflowFileCollector {
+    files: Vec<String>,
+    seen: BTreeSet<String>,
 }
 
 #[derive(Debug)]
@@ -130,7 +141,8 @@ fn run_inner<O: Write, E: Write>(
     apply_options(&mut config, &options);
     config::validate(&config).map_err(|err| err.to_string())?;
 
-    let selection = if options.paths.is_empty() {
+    let explicit_paths = options.paths.clone();
+    let selection = if explicit_paths.is_empty() {
         let paths = if config.file_selection.files.is_empty() {
             vec![".".to_string()]
         } else {
@@ -142,12 +154,13 @@ fn run_inner<O: Write, E: Write>(
         }
     } else {
         FileCollectionRequest {
-            paths: options.paths,
+            paths: explicit_paths.clone(),
             exclude: Vec::new(),
         }
     };
 
     let files = collect_rust_files(selection).map_err(|err| err.to_string())?;
+    let analyze_workflows = config.github_actions_pinned.enabled;
     let analyzer = Analyzer::new(config);
     let mut diagnostics = Vec::new();
     for file in files {
@@ -159,6 +172,23 @@ fn run_inner<O: Write, E: Write>(
             })
             .map_err(|err| format!("{file}: {err}"))?;
         diagnostics.extend(file_diagnostics);
+    }
+    if analyze_workflows {
+        let workflow_files = collect_workflow_files(WorkflowCollectionRequest {
+            paths: explicit_paths.clone(),
+            explicit: !explicit_paths.is_empty(),
+        })
+        .map_err(|err| err.to_string())?;
+        for file in workflow_files {
+            let source = fs::read_to_string(&file).map_err(|err| format!("{file}: {err}"))?;
+            let file_diagnostics = analyzer
+                .analyze_workflow_file(crate::analysis::AnalyzeWorkflowFileRequest {
+                    path: file.clone(),
+                    source,
+                })
+                .map_err(|err| format!("{file}: {err}"))?;
+            diagnostics.extend(file_diagnostics);
+        }
     }
 
     sort_diagnostics(&mut diagnostics);
@@ -212,6 +242,9 @@ fn parse_options(args: Vec<String>) -> Result<CliOptions, String> {
             }
             "--casing" | "-casing" => {
                 options.casing_enabled = Some(optional_bool(inline_value, flag)?);
+            }
+            "--github-actions-pinned" | "-github-actions-pinned" => {
+                options.github_actions_pinned = Some(optional_bool(inline_value, flag)?);
             }
             "--version" | "-version" => {
                 options.version = optional_bool(inline_value, flag)?;
@@ -513,6 +546,9 @@ fn apply_options(config: &mut Config, options: &CliOptions) {
         config.casing.enabled = true;
         config.casing.constants = style;
     }
+    if let Some(enabled) = options.github_actions_pinned {
+        config.github_actions_pinned.enabled = enabled;
+    }
 }
 
 fn collect_rust_files(request: FileCollectionRequest) -> Result<Vec<String>, CliError> {
@@ -679,6 +715,110 @@ fn normalize_pattern(value: &str) -> String {
         result = result[2..].to_string();
     }
     result.trim_end_matches('/').to_string()
+}
+
+fn collect_workflow_files(request: WorkflowCollectionRequest) -> Result<Vec<String>, CliError> {
+    let mut collector = WorkflowFileCollector {
+        files: Vec::new(),
+        seen: BTreeSet::new(),
+    };
+
+    if !request.explicit {
+        collector.add_default_workflows()?;
+        collector.files.sort();
+        return Ok(collector.files);
+    }
+
+    for path in request.paths {
+        collector.add_explicit_path(&normalize_path(&path))?;
+    }
+    collector.files.sort();
+    Ok(collector.files)
+}
+
+impl WorkflowFileCollector {
+    fn add_default_workflows(&mut self) -> Result<(), CliError> {
+        let path = Path::new(".github").join("workflows");
+        match fs::metadata(&path) {
+            Ok(metadata) if metadata.is_dir() => self.add_workflow_dir(&path_to_string(&path)),
+            Ok(_) => Ok(()),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(err) => Err(CliError::Io(err)),
+        }
+    }
+
+    fn add_explicit_path(&mut self, path: &str) -> Result<(), CliError> {
+        if has_glob_syntax(path) {
+            let mut matches = Vec::new();
+            for entry in glob(path)? {
+                match entry {
+                    Ok(path) => matches.push(path),
+                    Err(err) => {
+                        return Err(CliError::Message(format!(
+                            "invalid file pattern: {path}: {err}"
+                        )))
+                    }
+                }
+            }
+            if matches.is_empty() {
+                return Err(CliError::Message(format!(
+                    "pattern matched no files: {path}"
+                )));
+            }
+            for path in matches {
+                self.add_explicit_path(&path_to_string(&path))?;
+            }
+            return Ok(());
+        }
+
+        let metadata = fs::metadata(path).map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                CliError::Message(format!("path does not exist: {path}"))
+            } else {
+                CliError::Io(err)
+            }
+        })?;
+        if metadata.is_dir() {
+            let nested = Path::new(path).join(".github").join("workflows");
+            match fs::metadata(&nested) {
+                Ok(metadata) if metadata.is_dir() => {
+                    return self.add_workflow_dir(&path_to_string(&nested))
+                }
+                Ok(_) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                Err(err) => return Err(CliError::Io(err)),
+            }
+            self.add_workflow_dir(path)
+        } else {
+            self.add_file(path);
+            Ok(())
+        }
+    }
+
+    fn add_workflow_dir(&mut self, path: &str) -> Result<(), CliError> {
+        let mut entries = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            if entry.file_type()?.is_dir() {
+                continue;
+            }
+            let child = Path::new(path).join(entry.file_name());
+            self.add_file(&path_to_string(&child));
+        }
+        Ok(())
+    }
+
+    fn add_file(&mut self, path: &str) {
+        if !is_workflow_file(path) || self.seen.contains(path) {
+            return;
+        }
+        self.seen.insert(path.to_string());
+        self.files.push(path.to_string());
+    }
+}
+
+fn is_workflow_file(path: &str) -> bool {
+    path.ends_with(".yml") || path.ends_with(".yaml")
 }
 
 fn sort_diagnostics(diagnostics: &mut [Diagnostic]) {

@@ -290,4 +290,112 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics.count, 1)
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.variableCasing)
     }
+
+    func testReportsUnpinnedGitHubActions() throws {
+        var config = VetConfig.default()
+        config.githubActionsPinned.enabled = true
+
+        for (name, action) in [
+            ("tag", "actions/checkout@v5"),
+            ("branch", "actions/checkout@main"),
+            ("missing-ref", "actions/checkout"),
+            ("short-sha", "actions/checkout@f43a0e5ff2bd"),
+            ("non-hex-40", "actions/checkout@zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"),
+        ] {
+            let diagnostics = try GitHubActionsAnalyzer(config: config).analyzeFile(AnalyzeWorkflowFileRequest(
+                path: "workflow.yml",
+                source: """
+                name: test
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: \(action)
+                """
+            ))
+
+            XCTAssertEqual(diagnostics.count, 1, name)
+            XCTAssertEqual(diagnostics[0].ruleID, RuleID.githubActionsPinned, name)
+            XCTAssertEqual(diagnostics[0].line, 6, name)
+        }
+    }
+
+    func testAcceptsPinnedAndIgnoredGitHubActions() throws {
+        var config = VetConfig.default()
+        config.githubActionsPinned.enabled = true
+
+        for (name, source) in [
+            (
+                "full-sha",
+                """
+                name: test
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744
+                """
+            ),
+            (
+                "full-sha-uppercase",
+                """
+                name: test
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: actions/checkout@F43A0E5FF2BD294095638E18286CA9A3D1956744
+                """
+            ),
+            (
+                "nested-action-path",
+                """
+                name: test
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: owner/repo/path/to/action@f43a0e5ff2bd294095638e18286ca9a3d1956744
+                """
+            ),
+            (
+                "local-action",
+                """
+                name: test
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: ./.github/actions/build
+                """
+            ),
+            (
+                "docker-action",
+                """
+                name: test
+                jobs:
+                  build:
+                    runs-on: ubuntu-latest
+                    steps:
+                      - uses: docker://alpine:3.19
+                """
+            ),
+            (
+                "reusable-workflow",
+                """
+                name: test
+                jobs:
+                  call:
+                    uses: owner/repo/.github/workflows/build.yml@main
+                """
+            ),
+        ] {
+            let diagnostics = try GitHubActionsAnalyzer(config: config).analyzeFile(AnalyzeWorkflowFileRequest(
+                path: "workflow.yml",
+                source: source
+            ))
+
+            XCTAssertEqual(diagnostics.count, 0, name)
+        }
+    }
 }

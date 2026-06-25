@@ -1,0 +1,4 @@
+name: reusable-workflow
+jobs:
+  call:
+    uses: owner/repo/.github/workflows/build.yml@main
