@@ -23,6 +23,9 @@ final class SwiftAnalyzerTests: XCTestCase {
     func testIgnoresCommasInsideNestedParameterTypes() {
         let source = """
         func accepted(_ handler: (Int, Int) -> Void) {}
+        func acceptedGeneric(_ value: Result<Int, Error>) {}
+        func acceptedNestedGeneric(_ value: Dictionary<String, [String: Int]>) {}
+        func acceptedGenericDefault(_ value: Dictionary<String, Int> = Dictionary<String, Int>()) {}
         """
 
         let diagnostics = SwiftAnalyzer(config: .default()).analyzeFile(AnalyzeFileRequest(
@@ -31,6 +34,20 @@ final class SwiftAnalyzerTests: XCTestCase {
         ))
 
         XCTAssertEqual(diagnostics.count, 0)
+    }
+
+    func testCountsParametersAfterDefaultValueComparison() {
+        let source = """
+        func rejected(_ first: Bool = 1 < 2, _ second: Int) {}
+        """
+
+        let diagnostics = SwiftAnalyzer(config: .default()).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: source
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.maxFunctionParameters)
     }
 
     func testReportsMissingRequiredHeader() {

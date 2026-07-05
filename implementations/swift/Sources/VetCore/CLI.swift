@@ -20,7 +20,8 @@ public struct CLIInvocation {
 }
 
 struct CLIOptions {
-    var configPath: String?
+    var configLongPath: String?
+    var configShortPath: String?
     var format = "text"
     var maxFunctionParameters: Int?
     var requireFileHeader: Bool?
@@ -83,7 +84,15 @@ public enum CLI {
         }
 
         var config = VetConfig.default()
-        let configPath = options.configPath ?? defaultConfigPathIfPresent()
+        let selectedConfigPath: String?
+        do {
+            selectedConfigPath = try selectConfigPath(options)
+        } catch {
+            invocation.stderr("vet: \(error)\n")
+            return 2
+        }
+
+        let configPath = selectedConfigPath ?? defaultConfigPathIfPresent()
         if let path = configPath {
             do {
                 config = try ConfigLoader.load(ConfigLoadRequest(path: path, base: config, language: "swift"))
@@ -191,71 +200,91 @@ public enum CLI {
 
         while cursor < arguments.count {
             let argument = arguments[cursor]
+            let (flag, inlineValue) = splitInlineValue(argument)
             switch argument {
             case "--":
                 options.paths.append(contentsOf: arguments.dropFirst(cursor + 1))
                 return options
             case "-config":
                 throw CLIError.message("use -c or --config, not -config")
-            case "-c", "--config":
-                cursor += 1
-                options.configPath = try value(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--format", "-format":
-                cursor += 1
-                options.format = try value(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--max-function-parameters", "-max-function-parameters":
-                cursor += 1
-                options.maxFunctionParameters = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--require-file-header", "-require-file-header":
-                options.requireFileHeader = true
-            case "--min-file-header-length", "-min-file-header-length":
-                cursor += 1
-                options.minFileHeaderLength = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--max-file-header-length", "-max-file-header-length":
-                cursor += 1
-                options.maxFileHeaderLength = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--max-source-file-lines", "-max-source-file-lines":
-                cursor += 1
-                options.maxSourceFileLines = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--max-function-body-lines", "-max-function-body-lines":
-                cursor += 1
-                options.maxFunctionBodyLines = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--function-docstring-policy", "-function-docstring-policy":
-                cursor += 1
-                options.functionDocstringPolicy = try docstringPolicy(ArgumentValueRequest(
-                    arguments: arguments,
-                    offset: cursor,
-                    flag: argument
-                ))
-            case "--indent-type", "-indent-type":
-                cursor += 1
-                options.indentType = try indentType(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--indent-width", "-indent-width":
-                cursor += 1
-                options.indentWidth = try intValue(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--casing", "-casing":
-                options.casingEnabled = true
-            case "--function-casing", "-function-casing":
-                cursor += 1
-                options.functionCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--variable-casing", "-variable-casing":
-                cursor += 1
-                options.variableCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--type-casing", "-type-casing":
-                cursor += 1
-                options.typeCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--constant-casing", "-constant-casing":
-                cursor += 1
-                options.constantCasing = try casingStyle(ArgumentValueRequest(arguments: arguments, offset: cursor, flag: argument))
-            case "--github-actions-pinned", "-github-actions-pinned":
-                options.githubActionsPinned = true
-            case "--version", "-version":
-                options.version = true
             default:
-                if argument.hasPrefix("-") {
-                    throw CLIError.message("unknown flag \(argument)")
+                switch flag {
+                case "-c":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.configShortPath = parsed.value
+                    cursor += parsed.consumed
+                case "--config":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.configLongPath = parsed.value
+                    cursor += parsed.consumed
+                case "-config":
+                    throw CLIError.message("use -c or --config, not -config")
+                case "--format", "-format":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.format = parsed.value
+                    cursor += parsed.consumed
+                case "--max-function-parameters", "-max-function-parameters":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.maxFunctionParameters = try intValue(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--require-file-header", "-require-file-header":
+                    options.requireFileHeader = try optionalBool(inlineValue, flag: flag)
+                case "--min-file-header-length", "-min-file-header-length":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.minFileHeaderLength = try intValue(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--max-file-header-length", "-max-file-header-length":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.maxFileHeaderLength = try intValue(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--max-source-file-lines", "-max-source-file-lines":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.maxSourceFileLines = try intValue(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--max-function-body-lines", "-max-function-body-lines":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.maxFunctionBodyLines = try intValue(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--function-docstring-policy", "-function-docstring-policy":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.functionDocstringPolicy = try docstringPolicy(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--indent-type", "-indent-type":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.indentType = try indentType(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--indent-width", "-indent-width":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.indentWidth = try intValue(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--casing", "-casing":
+                    options.casingEnabled = try optionalBool(inlineValue, flag: flag)
+                case "--function-casing", "-function-casing":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.functionCasing = try casingStyle(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--variable-casing", "-variable-casing":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.variableCasing = try casingStyle(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--type-casing", "-type-casing":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.typeCasing = try casingStyle(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--constant-casing", "-constant-casing":
+                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
+                    options.constantCasing = try casingStyle(parsed.value, flag: flag)
+                    cursor += parsed.consumed
+                case "--github-actions-pinned", "-github-actions-pinned":
+                    options.githubActionsPinned = try optionalBool(inlineValue, flag: flag)
+                case "--version", "-version":
+                    options.version = try optionalBool(inlineValue, flag: flag)
+                default:
+                    if argument.hasPrefix("-") {
+                        throw CLIError.message("unknown flag \(argument)")
+                    }
+                    options.paths.append(argument)
                 }
-                options.paths.append(argument)
             }
             cursor += 1
         }
@@ -263,48 +292,82 @@ public enum CLI {
         return options
     }
 
-    private static func value(_ request: ArgumentValueRequest) throws -> String {
-        guard request.offset < request.arguments.count else {
+    private static func flagValue(_ request: FlagValueRequest) throws -> FlagValueResult {
+        if let inlineValue = request.inlineValue {
+            return FlagValueResult(value: inlineValue, consumed: 0)
+        }
+
+        let valueOffset = request.offset + 1
+        guard valueOffset < request.arguments.count else {
             throw CLIError.message("\(request.flag) requires a value")
         }
 
-        return request.arguments[request.offset]
+        return FlagValueResult(value: request.arguments[valueOffset], consumed: 1)
     }
 
-    private static func intValue(_ request: ArgumentValueRequest) throws -> Int {
-        let raw = try value(request)
+    private static func splitInlineValue(_ argument: String) -> (flag: String, inlineValue: String?) {
+        guard let index = argument.firstIndex(of: "=") else {
+            return (argument, nil)
+        }
+
+        return (String(argument[..<index]), String(argument[argument.index(after: index)...]))
+    }
+
+    private static func optionalBool(_ raw: String?, flag: String) throws -> Bool {
+        guard let raw else {
+            return true
+        }
+
+        switch raw {
+        case "true":
+            return true
+        case "false":
+            return false
+        default:
+            throw CLIError.message("\(flag) must be true or false")
+        }
+    }
+
+    private static func intValue(_ raw: String, flag: String) throws -> Int {
         guard let value = Int(raw) else {
-            throw CLIError.message("\(request.flag) must be an integer")
+            throw CLIError.message("\(flag) must be an integer")
         }
 
         return value
     }
 
-    private static func docstringPolicy(_ request: ArgumentValueRequest) throws -> FunctionDocstringPolicy {
-        let raw = try value(request)
+    private static func docstringPolicy(_ raw: String, flag: String) throws -> FunctionDocstringPolicy {
         guard let policy = FunctionDocstringPolicy(rawValue: raw) else {
-            throw CLIError.message("\(request.flag) must be forbidden, optional, or mandatory")
+            throw CLIError.message("\(flag) must be forbidden, optional, or mandatory")
         }
 
         return policy
     }
 
-    private static func indentType(_ request: ArgumentValueRequest) throws -> IndentType {
-        let raw = try value(request)
+    private static func indentType(_ raw: String, flag: String) throws -> IndentType {
         guard let type = IndentType(rawValue: raw) else {
-            throw CLIError.message("\(request.flag) must be tabs, spaces, or language-default")
+            throw CLIError.message("\(flag) must be tabs, spaces, or language-default")
         }
 
         return type
     }
 
-    private static func casingStyle(_ request: ArgumentValueRequest) throws -> CasingStyle {
-        let raw = try value(request)
+    private static func casingStyle(_ raw: String, flag: String) throws -> CasingStyle {
         guard let style = CasingStyle(rawValue: raw) else {
-            throw CLIError.message("\(request.flag) must be off, language-default, camelCase, UpperCamelCase, snake_case, or SNAKE_CASE_FULL_CAPS")
+            throw CLIError.message("\(flag) must be off, language-default, camelCase, UpperCamelCase, snake_case, or SNAKE_CASE_FULL_CAPS")
         }
 
         return style
+    }
+
+    private static func selectConfigPath(_ options: CLIOptions) throws -> String? {
+        if let long = options.configLongPath,
+           let short = options.configShortPath,
+           long != short {
+            throw CLIError.message("-c and --config cannot point to different files")
+        }
+
+        return options.configShortPath ?? options.configLongPath
     }
 
     private static func applyOptions(_ request: OptionsApplyRequest) -> VetConfig {
@@ -430,10 +493,16 @@ public enum CLI {
     }
 }
 
-struct ArgumentValueRequest {
+struct FlagValueRequest {
     let arguments: [String]
     let offset: Int
+    let inlineValue: String?
     let flag: String
+}
+
+struct FlagValueResult {
+    let value: String
+    let consumed: Int
 }
 
 struct OptionsApplyRequest {

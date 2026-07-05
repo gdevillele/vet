@@ -152,6 +152,8 @@ enum FunctionParameterAnalyzer {
         var parenDepth = 0
         var squareDepth = 0
         var braceDepth = 0
+        var angleDepth = 0
+        var inDefaultValue = false
 
         for index in request.start..<request.end {
             let character = request.characters[index]
@@ -173,9 +175,24 @@ enum FunctionParameterAnalyzer {
                 braceDepth += 1
             case "}":
                 braceDepth = max(0, braceDepth - 1)
+            case "<":
+                angleDepth += 1
+            case ">":
+                angleDepth = max(0, angleDepth - 1)
+            case "=":
+                if parenDepth == 0 && squareDepth == 0 && braceDepth == 0 && angleDepth == 0 {
+                    inDefaultValue = true
+                }
             case ",":
-                if parenDepth == 0 && squareDepth == 0 && braceDepth == 0 {
+                let startsNextParameter = inDefaultValue && looksLikeParameterStart(ParameterStartRequest(
+                    characters: request.characters,
+                    start: index + 1,
+                    end: request.end
+                ))
+                if parenDepth == 0 && squareDepth == 0 && braceDepth == 0 && (angleDepth == 0 || startsNextParameter) {
                     count += 1
+                    angleDepth = 0
+                    inDefaultValue = false
                 }
             default:
                 break
@@ -183,6 +200,50 @@ enum FunctionParameterAnalyzer {
         }
 
         return hasContent ? count : 0
+    }
+
+    private static func looksLikeParameterStart(_ request: ParameterStartRequest) -> Bool {
+        var parenDepth = 0
+        var squareDepth = 0
+        var braceDepth = 0
+        var angleDepth = 0
+
+        for index in request.start..<request.end {
+            let character = request.characters[index]
+            switch character {
+            case "(":
+                parenDepth += 1
+            case ")":
+                if parenDepth == 0 {
+                    return false
+                }
+                parenDepth -= 1
+            case "[":
+                squareDepth += 1
+            case "]":
+                squareDepth = max(0, squareDepth - 1)
+            case "{":
+                braceDepth += 1
+            case "}":
+                braceDepth = max(0, braceDepth - 1)
+            case "<":
+                angleDepth += 1
+            case ">":
+                angleDepth = max(0, angleDepth - 1)
+            case ":":
+                if parenDepth == 0 && squareDepth == 0 && braceDepth == 0 && angleDepth == 0 {
+                    return true
+                }
+            case ",", "=":
+                if parenDepth == 0 && squareDepth == 0 && braceDepth == 0 && angleDepth == 0 {
+                    return false
+                }
+            default:
+                break
+            }
+        }
+
+        return false
     }
 
     private static func findClosingParen(_ request: ParenFindRequest) -> Int? {
@@ -379,6 +440,12 @@ struct FunctionReadRequest {
 }
 
 struct ParameterCountRequest {
+    let characters: [Character]
+    let start: Int
+    let end: Int
+}
+
+struct ParameterStartRequest {
     let characters: [Character]
     let start: Int
     let end: Int

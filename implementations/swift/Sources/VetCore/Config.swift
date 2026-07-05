@@ -119,12 +119,40 @@ struct ConfigFile: Decodable {
     let version: Int?
     let rules: RulesFile?
     let languages: [String: LanguageFile]?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case version
+        case rules
+        case languages
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version)
+        rules = try container.decodeIfPresent(RulesFile.self, forKey: .rules)
+        languages = try container.decodeIfPresent([String: LanguageFile].self, forKey: .languages)
+    }
 }
 
 struct LanguageFile: Decodable {
     let files: [String]?
     let exclude: [String]?
     let rules: RulesFile?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case files
+        case exclude
+        case rules
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        files = try container.decodeIfPresent([String].self, forKey: .files)
+        exclude = try container.decodeIfPresent([String].self, forKey: .exclude)
+        rules = try container.decodeIfPresent(RulesFile.self, forKey: .rules)
+    }
 }
 
 struct RulesFile: Decodable {
@@ -137,7 +165,7 @@ struct RulesFile: Decodable {
     let casing: CasingFile?
     let githubActionsPinned: GithubActionsPinnedFile?
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case maxFunctionParameters = "max-function-parameters"
         case sourceFileHeader = "source-file-header"
         case sourceFileLines = "max-source-file-lines"
@@ -147,11 +175,36 @@ struct RulesFile: Decodable {
         case casing
         case githubActionsPinned = "github-actions-pinned"
     }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        maxFunctionParameters = try container.decodeIfPresent(MaxFunctionParametersFile.self, forKey: .maxFunctionParameters)
+        sourceFileHeader = try container.decodeIfPresent(SourceFileHeaderFile.self, forKey: .sourceFileHeader)
+        sourceFileLines = try container.decodeIfPresent(SourceFileLinesFile.self, forKey: .sourceFileLines)
+        functionBodyLines = try container.decodeIfPresent(FunctionBodyLinesFile.self, forKey: .functionBodyLines)
+        functionDocstring = try container.decodeIfPresent(FunctionDocstringFile.self, forKey: .functionDocstring)
+        indent = try container.decodeIfPresent(IndentFile.self, forKey: .indent)
+        casing = try container.decodeIfPresent(CasingFile.self, forKey: .casing)
+        githubActionsPinned = try container.decodeIfPresent(GithubActionsPinnedFile.self, forKey: .githubActionsPinned)
+    }
 }
 
 struct MaxFunctionParametersFile: Decodable {
     let enabled: Bool?
     let max: Int?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case enabled
+        case max
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        max = try container.decodeIfPresent(Int.self, forKey: .max)
+    }
 }
 
 struct SourceFileHeaderFile: Decodable {
@@ -159,28 +212,78 @@ struct SourceFileHeaderFile: Decodable {
     let minLength: Int?
     let maxLength: Int?
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case required
         case minLength = "min-length"
         case maxLength = "max-length"
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        required = try container.decodeIfPresent(Bool.self, forKey: .required)
+        minLength = try container.decodeIfPresent(Int.self, forKey: .minLength)
+        maxLength = try container.decodeIfPresent(Int.self, forKey: .maxLength)
     }
 }
 
 struct SourceFileLinesFile: Decodable {
     let max: Int?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case max
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        max = try container.decodeIfPresent(Int.self, forKey: .max)
+    }
 }
 
 struct FunctionBodyLinesFile: Decodable {
     let max: Int?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case max
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        max = try container.decodeIfPresent(Int.self, forKey: .max)
+    }
 }
 
 struct FunctionDocstringFile: Decodable {
     let policy: FunctionDocstringPolicy?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case policy
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        policy = try container.decodeIfPresent(FunctionDocstringPolicy.self, forKey: .policy)
+    }
 }
 
 struct IndentFile: Decodable {
     let type: IndentType?
     let width: Int?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case type
+        case width
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        type = try container.decodeIfPresent(IndentType.self, forKey: .type)
+        width = try container.decodeIfPresent(Int.self, forKey: .width)
+    }
 }
 
 struct CasingFile: Decodable {
@@ -192,7 +295,7 @@ struct CasingFile: Decodable {
     let ignoreNames: [String]?
     let ignorePatterns: [String]?
 
-    enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled
         case functions
         case variables
@@ -200,6 +303,18 @@ struct CasingFile: Decodable {
         case constants
         case ignoreNames = "ignore-names"
         case ignorePatterns = "ignore-patterns"
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        functions = try container.decodeIfPresent(CasingStyle.self, forKey: .functions)
+        variables = try container.decodeIfPresent(CasingStyle.self, forKey: .variables)
+        types = try container.decodeIfPresent(CasingStyle.self, forKey: .types)
+        constants = try container.decodeIfPresent(CasingStyle.self, forKey: .constants)
+        ignoreNames = try container.decodeIfPresent([String].self, forKey: .ignoreNames)
+        ignorePatterns = try container.decodeIfPresent([String].self, forKey: .ignorePatterns)
     }
 }
 
@@ -213,7 +328,7 @@ struct GithubActionsPinnedFile: Decodable {
     init(from decoder: Decoder) throws {
         try rejectUnknownKeys(
             decoder: decoder,
-            allowed: Set(CodingKeys.allCases.map(\.stringValue))
+            allowed: allowedKeys(CodingKeys.self)
         )
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
@@ -233,6 +348,10 @@ struct AnyCodingKey: CodingKey {
         stringValue = "\(intValue)"
         self.intValue = intValue
     }
+}
+
+func allowedKeys<K: CodingKey & CaseIterable>(_ type: K.Type) -> Set<String> {
+    Set(type.allCases.map(\.stringValue))
 }
 
 func rejectUnknownKeys(decoder: Decoder, allowed: Set<String>) throws {
