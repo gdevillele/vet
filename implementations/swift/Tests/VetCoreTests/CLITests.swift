@@ -252,6 +252,24 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(stderr, "")
     }
 
+    func testRunRejectsConflictingConfigAliases() throws {
+        let directory = temporaryDirectory()
+        let first = directory.appendingPathComponent("first.yaml")
+        let second = directory.appendingPathComponent("second.yaml")
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["-c", first.path, "--config", second.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 2)
+        XCTAssertEqual(stdout, "")
+        XCTAssertTrue(stderr.contains("-c and --config cannot point to different files"))
+    }
+
     func testRunFlagsOverrideConfigFile() throws {
         let directory = temporaryDirectory()
         let file = directory.appendingPathComponent("sample.swift")
@@ -271,6 +289,63 @@ final class CLITests: XCTestCase {
         var stderr = ""
         let code = CLI.run(CLIInvocation(
             arguments: ["--config", config.path, "--min-file-header-length", "4", directory.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 0)
+        XCTAssertEqual(stdout, "")
+        XCTAssertEqual(stderr, "")
+    }
+
+    func testRunBooleanFalseFlagOverridesConfigFile() throws {
+        let directory = temporaryDirectory()
+        let file = directory.appendingPathComponent("sample.swift")
+        let config = directory.appendingPathComponent("vet.yaml")
+        try "func accepted() {}\n".write(to: file, atomically: true, encoding: .utf8)
+        try """
+        version: 1
+        rules:
+          source-file-header:
+            required: true
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--config", config.path, "--require-file-header=false", directory.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 0)
+        XCTAssertEqual(stdout, "")
+        XCTAssertEqual(stderr, "")
+    }
+
+    func testRunGithubActionsPinnedFalseFlagOverridesConfigFile() throws {
+        let directory = temporaryDirectory()
+        let workflow = directory.appendingPathComponent("build.yml")
+        let config = directory.appendingPathComponent("vet.yaml")
+        try """
+        name: test
+        jobs:
+          build:
+            runs-on: ubuntu-latest
+            steps:
+              - uses: actions/checkout@main
+        """.write(to: workflow, atomically: true, encoding: .utf8)
+        try """
+        version: 1
+        rules:
+          github-actions-pinned:
+            enabled: true
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--config", config.path, "--github-actions-pinned=false", workflow.path],
             stdout: { stdout += $0 },
             stderr: { stderr += $0 }
         ))
@@ -358,6 +433,37 @@ final class CLITests: XCTestCase {
         let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [[String: Any]])
         let ruleIDs = diagnostics.compactMap { $0["rule_id"] as? String }
         XCTAssertEqual(ruleIDs, ["VET005", "VET006", "VET007"])
+    }
+
+    func testRunAcceptsInlineValueFlags() throws {
+        let directory = temporaryDirectory()
+        let file = directory.appendingPathComponent("sample.swift")
+        try """
+        let one = 1
+        let two = 2
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: [
+                "--format=json",
+                "--max-source-file-lines=1",
+                directory.path,
+            ],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertEqual(stderr, "")
+
+        let data = try XCTUnwrap(stdout.data(using: .utf8))
+        let object = try JSONSerialization.jsonObject(with: data)
+        let payload = try XCTUnwrap(object as? [String: Any])
+        let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [[String: Any]])
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0]["rule_id"] as? String, "VET005")
     }
 
     func testRunReportsIndentDiagnostics() throws {
