@@ -162,6 +162,69 @@ final class ConfigTests: XCTestCase {
         )))
     }
 
+    func testLoadFileRejectsUnknownFields() throws {
+        let cases = [
+            (
+                "top-level",
+                """
+                version: 1
+                rulez: {}
+                """
+            ),
+            (
+                "rule-name",
+                """
+                version: 1
+                rules:
+                  source-file-headers:
+                    required: true
+                """
+            ),
+            (
+                "nested-rule",
+                """
+                version: 1
+                rules:
+                  source-file-header:
+                    minimum: 10
+                """
+            ),
+            (
+                "language",
+                """
+                version: 1
+                languages:
+                  swift:
+                    include:
+                      - Sources/*.swift
+                """
+            ),
+            (
+                "language-rule",
+                """
+                version: 1
+                languages:
+                  swift:
+                    rules:
+                      indent:
+                        tab-width: 4
+                """
+            ),
+        ]
+
+        let directory = temporaryDirectory()
+        let configPath = directory.appendingPathComponent("vet.yaml")
+        for (name, yaml) in cases {
+            try yaml.write(to: configPath, atomically: true, encoding: .utf8)
+
+            XCTAssertThrowsError(try ConfigLoader.load(ConfigLoadRequest(
+                path: configPath.path,
+                base: .default(),
+                language: "swift"
+            )), name)
+        }
+    }
+
     func testValidateRejectsInvalidHeaderBounds() {
         var config = VetConfig.default()
         config.sourceFileHeader.minLength = 20
