@@ -1,6 +1,6 @@
 # vet
 
-[![CI Status](https://github.com/gdevillele/vet/actions/workflows/vet.yml/badge.svg)](https://github.com/gdevillele/vet/actions/workflows/vet.yml)
+[![CI Status](https://github.com/gdevillele/vet/actions/workflows/vet.yml/badge.svg?branch=main)](https://github.com/gdevillele/vet/actions/workflows/vet.yml?query=branch%3Amain)
 
 `vet` is a strict, multi-language code quality tool for agent-written code.
 
