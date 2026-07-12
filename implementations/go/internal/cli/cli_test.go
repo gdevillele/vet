@@ -561,6 +561,55 @@ func missing() {
 	}
 }
 
+func TestRunReportsEmptyDiagnosticsAsJSONArray(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "sample.go")
+	source := []byte(`package sample
+
+func accepted(value int) {}
+`)
+
+	if err := os.WriteFile(file, source, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args: []string{
+			"--format", "json",
+			dir,
+		},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if stderr.String() != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr.String())
+	}
+
+	// Decode with RawMessage so JSON null is distinguishable from an empty array.
+	// encoding/json unmarshals both null and [] into a nil Go slice.
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("Unmarshal returned error: %v; stdout=%q", err, stdout.String())
+	}
+
+	raw, ok := payload["diagnostics"]
+	if !ok {
+		t.Fatalf("expected diagnostics field, got %q", stdout.String())
+	}
+	if string(raw) == "null" {
+		t.Fatalf("expected diagnostics to be an empty JSON array [], got null; stdout=%q", stdout.String())
+	}
+	if string(raw) != "[]" {
+		t.Fatalf("expected diagnostics to be [], got %s; stdout=%q", raw, stdout.String())
+	}
+}
+
 func TestRunReportsIndentDiagnostics(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "sample.go")

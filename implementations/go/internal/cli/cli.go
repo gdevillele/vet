@@ -209,7 +209,7 @@ func Run(invocation Invocation) int {
 	}
 
 	analyzer := goanalysis.New(cfg)
-	var diagnostics []diagnostic.Diagnostic
+	diagnostics := make([]diagnostic.Diagnostic, 0)
 	for _, file := range files {
 		source, err := os.ReadFile(file)
 		if err != nil {
