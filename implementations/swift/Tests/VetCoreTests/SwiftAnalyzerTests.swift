@@ -198,6 +198,53 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionDocstring)
     }
 
+    func testAcceptsMandatoryDocstringBeforeModifiersAndAttributes() {
+        var config = VetConfig.default()
+        config.functionDocstring.policy = .mandatory
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            /// documented with access modifier.
+            public func withAccessModifier() {}
+
+            /// documented with attribute.
+            @MainActor
+            func withAttribute() {}
+
+            /// documented with attribute arguments.
+            @available(iOS 15, *)
+            @MainActor
+            public static func withStackedPrefix() {}
+
+            /**
+             documented with block comment.
+             */
+            open func withBlockDoc() {}
+            """
+        ))
+
+        XCTAssertEqual(diagnostics, [], "expected documented functions to satisfy mandatory policy: \(diagnostics)")
+    }
+
+    func testReportsForbiddenDocstringBeforeModifiersAndAttributes() {
+        var config = VetConfig.default()
+        config.functionDocstring.policy = .forbidden
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            /// should be forbidden even with modifiers.
+            @MainActor
+            public func documented() {}
+            """
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionDocstring)
+        XCTAssertEqual(diagnostics[0].message, "documented must not have a docstring")
+    }
+
     func testReportsTabsWhenSpacesIndentRequired() {
         var config = VetConfig.default()
         config.indent.type = .spaces

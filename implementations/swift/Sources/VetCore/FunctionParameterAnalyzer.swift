@@ -405,32 +405,129 @@ func functionBodyLineCount(_ request: FunctionBodyLineCountRequest) -> Int {
 }
 
 func hasFunctionDocstring(_ request: DocstringLookupRequest) -> Bool {
-    var cursor = request.offset - 1
+    let characters = request.characters
+    var cursor = skipWhitespaceBackward(characters, from: request.offset - 1)
+
     while cursor >= 0 {
-        let character = request.characters[cursor]
+        if let start = trailingDeclarationModifierStart(characters, end: cursor)
+            ?? trailingAttributeStart(characters, end: cursor) {
+            cursor = skipWhitespaceBackward(characters, from: start - 1)
+            continue
+        }
+        break
+    }
+
+    guard cursor >= 0 else {
+        return false
+    }
+
+    if isBlockDocCommentEnding(characters, end: cursor) {
+        return true
+    }
+
+    let lineStart = lineStartIndex(characters, containing: cursor)
+    let line = String(characters[lineStart...cursor]).trimmingCharacters(in: .whitespaces)
+    return line.hasPrefix("///")
+}
+
+/// Declaration modifiers that may appear between a docstring and `func`.
+private let functionDeclarationModifiers: Set<String> = [
+    "public", "private", "internal", "open", "fileprivate", "package",
+    "static", "class", "final", "override", "required",
+    "mutating", "nonmutating",
+    "optional", "dynamic", "indirect",
+    "nonisolated", "distributed",
+]
+
+private func skipWhitespaceBackward(_ characters: [Character], from offset: Int) -> Int {
+    var cursor = offset
+    while cursor >= 0 {
+        let character = characters[cursor]
         if character == " " || character == "\t" || character == "\r" || character == "\n" {
             cursor -= 1
         } else {
             break
         }
     }
+    return cursor
+}
 
-    if cursor < 0 {
+private func lineStartIndex(_ characters: [Character], containing offset: Int) -> Int {
+    var lineStart = offset
+    while lineStart > 0 && characters[lineStart - 1] != "\n" {
+        lineStart -= 1
+    }
+    return lineStart
+}
+
+private func trailingIdentifierStart(_ characters: [Character], end: Int) -> Int? {
+    guard end >= 0, isIdentifierPart(characters[end]) else {
+        return nil
+    }
+
+    var start = end
+    while start > 0 && isIdentifierPart(characters[start - 1]) {
+        start -= 1
+    }
+    return start
+}
+
+private func trailingDeclarationModifierStart(_ characters: [Character], end: Int) -> Int? {
+    guard let start = trailingIdentifierStart(characters, end: end) else {
+        return nil
+    }
+    let name = String(characters[start...end])
+    return functionDeclarationModifiers.contains(name) ? start : nil
+}
+
+/// Returns the index of `@` when `end` is the last character of a trailing attribute.
+private func trailingAttributeStart(_ characters: [Character], end: Int) -> Int? {
+    var cursor = end
+
+    if characters[cursor] == ")" {
+        var depth = 0
+        while cursor >= 0 {
+            let character = characters[cursor]
+            if character == ")" {
+                depth += 1
+            } else if character == "(" {
+                depth -= 1
+                if depth == 0 {
+                    break
+                }
+            }
+            cursor -= 1
+        }
+        guard cursor >= 0 else {
+            return nil
+        }
+        cursor = skipWhitespaceBackward(characters, from: cursor - 1)
+    }
+
+    guard let nameStart = trailingIdentifierStart(characters, end: cursor) else {
+        return nil
+    }
+    let atIndex = nameStart - 1
+    guard atIndex >= 0, characters[atIndex] == "@" else {
+        return nil
+    }
+    return atIndex
+}
+
+private func isBlockDocCommentEnding(_ characters: [Character], end: Int) -> Bool {
+    guard end >= 1, characters[end] == "/", characters[end - 1] == "*" else {
         return false
     }
 
-    let prefix = String(request.characters[0...cursor]).trimmingCharacters(in: .whitespacesAndNewlines)
-    if prefix.hasSuffix("*/") {
-        return prefix.contains("/**")
+    var cursor = end - 2
+    while cursor >= 1 {
+        if characters[cursor - 1] == "/" && characters[cursor] == "*" {
+            // Doc block comments start with /** (third character is '*').
+            return cursor + 1 <= end && characters[cursor + 1] == "*"
+        }
+        cursor -= 1
     }
-
-    var lineStart = cursor
-    while lineStart > 0 && request.characters[lineStart - 1] != "\n" {
-        lineStart -= 1
-    }
-
-    let line = String(request.characters[lineStart...cursor]).trimmingCharacters(in: .whitespaces)
-    return line.hasPrefix("///")
+    return false
 }
 
 struct FunctionReadRequest {
