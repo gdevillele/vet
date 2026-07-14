@@ -29,9 +29,10 @@ type Invocation struct {
 }
 
 type fileCollection struct {
-	files   []string
-	seen    map[string]bool
-	exclude []string
+	files     []string
+	seenFiles map[string]bool
+	seenDirs  map[string]bool
+	exclude   []string
 }
 
 type fileCollectionRequest struct {
@@ -344,8 +345,9 @@ func visitedFlags(flags *flag.FlagSet) map[string]bool {
 
 func collectGoFiles(request fileCollectionRequest) ([]string, error) {
 	collection := fileCollection{
-		seen:    make(map[string]bool),
-		exclude: request.Exclude,
+		seenFiles: make(map[string]bool),
+		seenDirs:  make(map[string]bool),
+		exclude:   request.Exclude,
 	}
 
 	for _, path := range request.Paths {
@@ -389,6 +391,19 @@ func (c *fileCollection) addPath(path string) error {
 }
 
 func (c *fileCollection) addDir(path string) error {
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	resolvedPath, err = filepath.Abs(resolvedPath)
+	if err != nil {
+		return err
+	}
+	if c.seenDirs[resolvedPath] {
+		return nil
+	}
+	c.seenDirs[resolvedPath] = true
+
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		return err
@@ -408,11 +423,11 @@ func (c *fileCollection) addDir(path string) error {
 }
 
 func (c *fileCollection) addFile(path string) {
-	if !strings.HasSuffix(path, ".go") || c.seen[path] || c.isExcluded(path) {
+	if !strings.HasSuffix(path, ".go") || c.seenFiles[path] || c.isExcluded(path) {
 		return
 	}
 
-	c.seen[path] = true
+	c.seenFiles[path] = true
 	c.files = append(c.files, path)
 }
 
