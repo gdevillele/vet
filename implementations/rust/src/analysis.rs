@@ -153,7 +153,7 @@ impl Analyzer {
                         ));
                         continue;
                     }
-                    if rule.width > 0 && leading.len() % rule.width as usize != 0 {
+                    if rule.width > 0 && !leading.len().is_multiple_of(rule.width as usize) {
                         diagnostics.push(diagnostic_at_offset(
                             RULE_INDENT_WIDTH,
                             format!(
