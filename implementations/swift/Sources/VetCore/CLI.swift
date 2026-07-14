@@ -516,7 +516,8 @@ struct DiagnosticPayload: Encodable {
 
 struct FileCollector {
     var files: [String] = []
-    var seen: Set<String> = []
+    var seenFiles: Set<String> = []
+    var seenDirectories: Set<String> = []
     var exclude: [String] = []
 
     mutating func addPath(_ path: String) throws {
@@ -548,6 +549,11 @@ struct FileCollector {
     }
 
     private mutating func addDirectory(_ path: String) throws {
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+        guard seenDirectories.insert(resolvedPath).inserted else {
+            return
+        }
+
         let entries = try FileManager.default.contentsOfDirectory(atPath: path)
         for entry in entries {
             if CLI.shouldSkipDirectory(entry) {
@@ -558,11 +564,11 @@ struct FileCollector {
     }
 
     private mutating func addFile(_ path: String) {
-        guard path.hasSuffix(".swift") && !seen.contains(path) && !isExcluded(path) else {
+        guard path.hasSuffix(".swift") && !seenFiles.contains(path) && !isExcluded(path) else {
             return
         }
 
-        seen.insert(path)
+        seenFiles.insert(path)
         files.append(path)
     }
 

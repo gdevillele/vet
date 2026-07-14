@@ -43,6 +43,34 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(stderr, "")
     }
 
+    func testRunHandlesDirectorySymlinkCycle() throws {
+        let root = temporaryDirectory()
+        let target = temporaryDirectory()
+        let file = target.appendingPathComponent("sample.swift")
+        try """
+        func rejected(_ left: Int, _ right: Int) {}
+        """.write(to: file, atomically: true, encoding: .utf8)
+
+        let linkedDirectory = root.appendingPathComponent("source")
+        try FileManager.default.createSymbolicLink(at: linkedDirectory, withDestinationURL: target)
+        try FileManager.default.createSymbolicLink(
+            at: target.appendingPathComponent("loop"),
+            withDestinationURL: root
+        )
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: [root.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1)
+        XCTAssertTrue(stdout.contains(linkedDirectory.path))
+        XCTAssertEqual(stderr, "")
+    }
+
     func testRunReportsMissingRequiredHeader() throws {
         let directory = temporaryDirectory()
         let file = directory.appendingPathComponent("sample.swift")
