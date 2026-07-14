@@ -9,7 +9,7 @@ use std::{
     collections::{BTreeSet, HashMap},
     fmt, fs,
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 pub const VERSION: &str = "0.1.0-dev";
@@ -46,7 +46,8 @@ struct FileCollectionRequest {
 
 struct FileCollector {
     files: Vec<String>,
-    seen: BTreeSet<String>,
+    seen_files: BTreeSet<String>,
+    seen_dirs: BTreeSet<PathBuf>,
     exclude: Vec<String>,
 }
 
@@ -554,7 +555,8 @@ fn apply_options(config: &mut Config, options: &CliOptions) {
 fn collect_rust_files(request: FileCollectionRequest) -> Result<Vec<String>, CliError> {
     let mut collector = FileCollector {
         files: Vec::new(),
-        seen: BTreeSet::new(),
+        seen_files: BTreeSet::new(),
+        seen_dirs: BTreeSet::new(),
         exclude: request.exclude,
     };
 
@@ -607,6 +609,11 @@ impl FileCollector {
     }
 
     fn add_dir(&mut self, path: &str) -> Result<(), CliError> {
+        let resolved_path = fs::canonicalize(path)?;
+        if !self.seen_dirs.insert(resolved_path) {
+            return Ok(());
+        }
+
         let mut entries = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
         entries.sort_by_key(|entry| entry.file_name());
         for entry in entries {
@@ -622,10 +629,10 @@ impl FileCollector {
     }
 
     fn add_file(&mut self, path: &str) {
-        if !path.ends_with(".rs") || self.seen.contains(path) || self.is_excluded(path) {
+        if !path.ends_with(".rs") || self.seen_files.contains(path) || self.is_excluded(path) {
             return;
         }
-        self.seen.insert(path.to_string());
+        self.seen_files.insert(path.to_string());
         self.files.push(path.to_string());
     }
 
