@@ -94,6 +94,33 @@ func rejected(left int, right int) {}
 	}
 }
 
+func TestCollectGoFilesHandlesDirectorySymlinkCycle(t *testing.T) {
+	root := t.TempDir()
+	target := t.TempDir()
+	sourcePath := filepath.Join(target, "sample.go")
+	if err := os.WriteFile(sourcePath, []byte("package sample\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	linkedDirectory := filepath.Join(root, "source")
+	if err := os.Symlink(target, linkedDirectory); err != nil {
+		t.Skipf("directory symlinks are unavailable: %v", err)
+	}
+	if err := os.Symlink(root, filepath.Join(target, "loop")); err != nil {
+		t.Skipf("directory symlinks are unavailable: %v", err)
+	}
+
+	files, err := collectGoFiles(fileCollectionRequest{Paths: []string{root}})
+	if err != nil {
+		t.Fatalf("collectGoFiles returned error: %v", err)
+	}
+
+	expected := filepath.Join(linkedDirectory, "sample.go")
+	if len(files) != 1 || files[0] != expected {
+		t.Fatalf("expected only %q, got %#v", expected, files)
+	}
+}
+
 func TestRunReportsMissingRequiredHeader(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "sample.go")
