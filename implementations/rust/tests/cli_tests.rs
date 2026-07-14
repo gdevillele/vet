@@ -7,6 +7,22 @@ use vet::analysis::{RULE_FUNCTION_BODY_LINES, RULE_FUNCTION_DOCSTRING, RULE_SOUR
 
 use common::{path_string, run_cli, run_cli_in_dir};
 
+#[cfg(unix)]
+fn symlink_dir(
+    original: impl AsRef<std::path::Path>,
+    link: impl AsRef<std::path::Path>,
+) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(original, link)
+}
+
+#[cfg(windows)]
+fn symlink_dir(
+    original: impl AsRef<std::path::Path>,
+    link: impl AsRef<std::path::Path>,
+) -> std::io::Result<()> {
+    std::os::windows::fs::symlink_dir(original, link)
+}
+
 #[test]
 fn run_reports_diagnostics() {
     let dir = TempDir::new().unwrap();
@@ -57,6 +73,36 @@ fn run_accepts_recursive_rust_pattern() {
     let (code, stdout, stderr) = run_cli([path_string(dir.path().join("..."))]);
 
     assert_eq!(code, 1, "stdout={stdout:?} stderr={stderr:?}");
+}
+
+#[test]
+fn run_handles_directory_symlink_cycle() {
+    let root = TempDir::new().unwrap();
+    let target = TempDir::new().unwrap();
+    fs::write(
+        target.path().join("sample.rs"),
+        "fn rejected(left: i32, right: i32) {}\n",
+    )
+    .unwrap();
+
+    let linked_directory = root.path().join("source");
+    if let Err(err) = symlink_dir(target.path(), &linked_directory) {
+        eprintln!("skipping test because directory symlinks are unavailable: {err}");
+        return;
+    }
+    if let Err(err) = symlink_dir(root.path(), target.path().join("loop")) {
+        eprintln!("skipping test because directory symlinks are unavailable: {err}");
+        return;
+    }
+
+    let (code, stdout, stderr) = run_cli([path_string(root.path())]);
+
+    assert_eq!(code, 1, "stdout={stdout:?} stderr={stderr:?}");
+    assert!(
+        stdout.contains(&path_string(linked_directory)),
+        "{stdout:?}"
+    );
+    assert_eq!(stderr, "");
 }
 
 #[test]
