@@ -588,6 +588,46 @@ func missing() {
 	}
 }
 
+func TestRunAcceptsFlagsAfterPaths(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "sample.go")
+	source := []byte(`package sample
+
+func rejected(left int, right int) {}
+`)
+
+	if err := os.WriteFile(file, source, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{dir, "--format", "json"},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+
+	if code != 1 {
+		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	if stderr.String() != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr.String())
+	}
+
+	var payload struct {
+		Diagnostics []struct {
+			RuleID string `json:"rule_id"`
+		} `json:"diagnostics"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("expected JSON output, got error %v; stdout=%q", err, stdout.String())
+	}
+	if len(payload.Diagnostics) != 1 || payload.Diagnostics[0].RuleID != "VET001" {
+		t.Fatalf("expected one VET001 diagnostic, got %#v", payload.Diagnostics)
+	}
+}
+
 func TestRunReportsEmptyDiagnosticsAsJSONArray(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "sample.go")

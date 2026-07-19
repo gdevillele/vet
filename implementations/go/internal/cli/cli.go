@@ -66,6 +66,10 @@ type configPathSelection struct {
 	Short   string
 }
 
+type boolFlagValue interface {
+	IsBoolFlag() bool
+}
+
 func Run(invocation Invocation) int {
 	if usesSingleDashConfig(invocation.Args) {
 		fmt.Fprintln(invocation.Stderr, "vet: use -c or --config, not -config")
@@ -95,7 +99,8 @@ func Run(invocation Invocation) int {
 	githubActionsPinned := flags.Bool("github-actions-pinned", false, "require GitHub workflow step actions to use full-length commit SHA pins")
 	version := flags.Bool("version", false, "print version")
 
-	if err := flags.Parse(invocation.Args); err != nil {
+	paths, err := parseInterspersedFlags(flags, invocation.Args)
+	if err != nil {
 		return 2
 	}
 
@@ -193,7 +198,7 @@ func Run(invocation Invocation) int {
 	}
 
 	selection := fileCollectionRequest{
-		Paths: flags.Args(),
+		Paths: paths,
 	}
 	if len(selection.Paths) == 0 {
 		selection.Paths = cfg.FileSelection.Files
@@ -231,8 +236,8 @@ func Run(invocation Invocation) int {
 	}
 	if cfg.GithubActionsPinned.Enabled {
 		workflowFiles, err := collectWorkflowFiles(workflowCollectionRequest{
-			Paths:    flags.Args(),
-			Explicit: len(flags.Args()) > 0,
+			Paths:    paths,
+			Explicit: len(paths) > 0,
 		})
 		if err != nil {
 			fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
@@ -284,6 +289,54 @@ func Run(invocation Invocation) int {
 	}
 
 	return 0
+}
+
+func parseInterspersedFlags(flags *flag.FlagSet, args []string) ([]string, error) {
+	flagArgs := make([]string, 0, len(args))
+	paths := make([]string, 0, len(args))
+
+	for cursor := 0; cursor < len(args); cursor++ {
+		argument := args[cursor]
+		if argument == "--" {
+			paths = append(paths, args[cursor+1:]...)
+			break
+		}
+		if argument == "-" || !strings.HasPrefix(argument, "-") {
+			paths = append(paths, argument)
+			continue
+		}
+
+		flagArgs = append(flagArgs, argument)
+		name, hasInlineValue := flagArgumentName(argument)
+		item := flags.Lookup(name)
+		if item == nil || hasInlineValue || isBooleanFlag(item) {
+			continue
+		}
+
+		cursor++
+		if cursor < len(args) {
+			flagArgs = append(flagArgs, args[cursor])
+		}
+	}
+
+	if err := flags.Parse(flagArgs); err != nil {
+		return nil, err
+	}
+	return paths, nil
+}
+
+func flagArgumentName(argument string) (string, bool) {
+	name := strings.TrimPrefix(argument, "-")
+	name = strings.TrimPrefix(name, "-")
+	if index := strings.IndexRune(name, '='); index >= 0 {
+		return name[:index], true
+	}
+	return name, false
+}
+
+func isBooleanFlag(item *flag.Flag) bool {
+	value, ok := item.Value.(boolFlagValue)
+	return ok && value.IsBoolFlag()
 }
 
 func usesSingleDashConfig(args []string) bool {
