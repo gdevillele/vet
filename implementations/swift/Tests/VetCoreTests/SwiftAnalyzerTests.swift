@@ -285,6 +285,77 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentWidth)
     }
 
+    func testAcceptsContinuationAlignment() {
+        var config = VetConfig.default()
+        config.indent.type = .spaces
+        config.indent.width = 4
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: """
+            func hasValues(_ values: [String]) -> Bool {
+                guard !values.isEmpty,
+                      values.allSatisfy({ !$0.isEmpty })
+                else {
+                    return false
+                }
+                return true
+            }
+
+            func formattedValue() -> String {
+                String(
+                       describing: 1
+                )
+                  .uppercased()
+            }
+            """
+        ))
+
+        XCTAssertEqual(diagnostics, [])
+    }
+
+    func testReportsTabsInContinuationAlignment() {
+        var config = VetConfig.default()
+        config.indent.type = .spaces
+        config.indent.width = 4
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func formattedValue() -> String {\n    String(\n\t       describing: 1\n    )\n}\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentType)
+    }
+
+    func testReportsBlockIndentationInsideWrappedExpression() {
+        var config = VetConfig.default()
+        config.indent.type = .spaces
+        config.indent.width = 4
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func run() {\n    execute(closure: {\n      print(\"invalid block indentation\")\n    })\n}\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentWidth)
+    }
+
+    func testDelimiterInStringDoesNotStartContinuation() {
+        var config = VetConfig.default()
+        config.indent.type = .spaces
+        config.indent.width = 4
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func run() {\n    print(\"(\")\n  print(\"invalid block indentation\")\n}\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentWidth)
+    }
+
     func testReportsCasingDiagnostics() {
         var config = VetConfig.default()
         config.casing.enabled = true

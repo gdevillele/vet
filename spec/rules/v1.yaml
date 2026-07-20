@@ -184,6 +184,7 @@ rules:
       - This rule only applies when the effective indentation type is spaces.
       - Blank lines are ignored.
       - Only leading indentation is checked.
+      - Swift continuation lines are exempt so their syntax may be aligned independently of block indentation.
   VET010:
     name: function-casing
     default_severity: error

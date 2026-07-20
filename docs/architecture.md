@@ -121,7 +121,8 @@ excluding the opening and closing brace lines.
 and Rust.
 
 `VET009` enforces space indentation width when the effective indentation type is
-spaces. A width of `0` disables the width check.
+spaces. A width of `0` disables the width check. Swift continuation lines may
+use alignment spaces beyond the configured block indentation width.
 
 `VET010` through `VET013` enforce casing for functions, variables, types, and
 constants. The grouped `casing` config is disabled by default, and each kind

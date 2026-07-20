@@ -44,11 +44,105 @@ func isIdentifierPart(_ character: Character?) -> Bool {
     return character.isLetter || character.isNumber || character == "_"
 }
 
+func maskNonCode(_ source: String) -> String {
+    var characters = Array(source)
+    var cursor = 0
+
+    while cursor < characters.count {
+        if startsWith(StartsWithRequest(characters: characters, offset: cursor, text: "//")) {
+            let result = maskLine(MaskRequest(characters: characters, offset: cursor))
+            characters = result.characters
+            cursor = result.offset
+        } else if startsWith(StartsWithRequest(characters: characters, offset: cursor, text: "/*")) {
+            let result = maskBlock(MaskRequest(characters: characters, offset: cursor))
+            characters = result.characters
+            cursor = result.offset
+        } else if characters[cursor] == "\"" {
+            let result = maskString(MaskRequest(characters: characters, offset: cursor))
+            characters = result.characters
+            cursor = result.offset
+        } else {
+            cursor += 1
+        }
+    }
+
+    return String(characters)
+}
+
+private func maskLine(_ request: MaskRequest) -> MaskResult {
+    var characters = request.characters
+    var cursor = request.offset
+    while cursor < characters.count && characters[cursor] != "\n" {
+        characters[cursor] = " "
+        cursor += 1
+    }
+    return MaskResult(characters: characters, offset: cursor)
+}
+
+private func maskBlock(_ request: MaskRequest) -> MaskResult {
+    var characters = request.characters
+    var cursor = request.offset
+    while cursor + 1 < characters.count {
+        if characters[cursor] == "*" && characters[cursor + 1] == "/" {
+            characters[cursor] = " "
+            characters[cursor + 1] = " "
+            return MaskResult(characters: characters, offset: cursor + 2)
+        }
+        if characters[cursor] != "\n" {
+            characters[cursor] = " "
+        }
+        cursor += 1
+    }
+
+    while cursor < characters.count {
+        if characters[cursor] != "\n" {
+            characters[cursor] = " "
+        }
+        cursor += 1
+    }
+    return MaskResult(characters: characters, offset: cursor)
+}
+
+private func maskString(_ request: MaskRequest) -> MaskResult {
+    var characters = request.characters
+    var cursor = request.offset
+    var escaped = false
+
+    while cursor < characters.count {
+        let character = characters[cursor]
+        if character != "\n" {
+            characters[cursor] = " "
+        }
+
+        if character == "\"" && !escaped && cursor > request.offset {
+            return MaskResult(characters: characters, offset: cursor + 1)
+        }
+
+        escaped = character == "\\" && !escaped
+        if character != "\\" {
+            escaped = false
+        }
+        cursor += 1
+    }
+
+    return MaskResult(characters: characters, offset: cursor)
+}
+
 struct DiagnosticBuildRequest {
     let ruleID: String
     let message: String
     let path: String
     let source: String
+    let offset: Int
+}
+
+private struct MaskRequest {
+    let characters: [Character]
+    let offset: Int
+}
+
+private struct MaskResult {
+    let characters: [Character]
     let offset: Int
 }
 
