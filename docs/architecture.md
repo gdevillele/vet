@@ -10,6 +10,8 @@ For example:
 - Go projects should be able to run `go run`.
 - Swift projects should be able to run `swift run`.
 - Rust projects should be able to run `cargo run` or install a Cargo binary.
+- C/C++ projects run a dedicated runner that analyzes C/C++ sources. That runner
+  is hosted in Go rather than written in C/C++ (see below).
 
 The shared layer is not a compiled library. It is the rule contract:
 
@@ -31,12 +33,30 @@ integration for that ecosystem:
 
 - Go: `go/parser`, `go/ast`, and later `go/packages`;
 - Swift: SwiftSyntax and SwiftPM plugins;
-- Rust: rust-analyzer syntax crates, `syn`, or compiler-integrated tooling.
+- Rust: rust-analyzer syntax crates, `syn`, or compiler-integrated tooling;
+- C/C++: comment/line analysis for the currently implemented rules; a future
+  tree-sitter or libclang backend for function-shape and casing rules.
+
+### Why the C/C++ Runner Is Not Written in C/C++
+
+Go, Swift, and Rust each have a standard "run this package" entry point that
+makes a same-language runner low-friction. C/C++ does not: projects use many
+build systems, and shipping a C++-native tool forces every consumer through a
+toolchain install that is often heavier than installing a static binary.
+
+Writing C/C++ analysis in C/C++ also has a higher implementation risk for a
+quality gate. Preprocessor macros, templates, and ambiguous declarations make
+hand-rolled parsing brittle. Hosting the C/C++ runner in Go keeps the tool
+memory-safe, easy to distribute, and aligned with the existing Go runner while
+still analyzing C and C++ sources under the shared rule contract. When function
+and casing rules are added, the preferred path is a battle-tested C/C++ parse
+library (tree-sitter or libclang bindings), not a from-scratch C++ AST walker.
 
 ## Avoiding Rule Drift
 
 The main risk of per-language implementations is divergence. `VET001` must mean
-the same thing everywhere even if Go, Swift, and Rust have different syntax.
+the same thing everywhere even if Go, Swift, Rust, and C/C++ have different
+syntax.
 
 To control that:
 
@@ -66,8 +86,11 @@ Implementation statuses:
 - `unimplemented`: the rule is compatible, but no implementation is scheduled.
 - `not-applicable`: the rule is incompatible with the language.
 
-All current rules are compatible with Go, Rust, and Swift, and all three native
-runners currently implement them.
+All current rules are compatible with Go, Rust, Swift, and C/C++ (`cpp`). The
+Go, Rust, and Swift runners implement every rule. The C/C++ runner currently
+implements header, file-length, indentation, and GitHub Actions pinning rules;
+function-shape and casing rules are planned until a reliable C/C++ syntax model
+is integrated.
 
 ## Implementation Boundary
 
@@ -117,8 +140,8 @@ excluding the opening and closing brace lines.
 `forbidden`, `optional`, and `mandatory`.
 
 `VET008` enforces indentation type. Supported types are `tabs`, `spaces`, and
-`language-default`; the language default is tabs for Go and spaces for Swift
-and Rust.
+`language-default`; the language default is tabs for Go and spaces for Swift,
+Rust, and C/C++.
 
 `VET009` enforces space indentation width when the effective indentation type is
 spaces. A width of `0` disables the width check. Swift continuation lines may

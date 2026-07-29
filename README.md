@@ -4,10 +4,11 @@
 
 `vet` is a strict, multi-language code quality tool for agent-written code.
 
-The project intentionally uses **per-language native implementations** instead
-of one universal binary. A Go project should be able to run the Go vet runner
-with Go tooling, a Swift project with Swift tooling, and a Rust project with
-Rust tooling.
+The project intentionally uses **per-language runners** instead of one
+universal binary. A Go project should be able to run the Go vet runner with Go
+tooling, a Swift project with Swift tooling, and a Rust project with Rust
+tooling. C/C++ is analyzed by a dedicated runner hosted in Go (see the C/C++
+section below).
 
 The shared part is the rule contract: rule IDs, defaults, language
 compatibility, diagnostics, and conformance fixtures live in `spec/`. Each
@@ -18,8 +19,9 @@ language implementation translates its syntax into those shared rules.
 ```text
 spec/                   Shared rule definitions and conformance fixtures.
 implementations/go/     Go-native vet runner.
-implementations/rust/   Rust-native vet runner scaffold.
-implementations/swift/  Swift-native vet runner scaffold.
+implementations/rust/   Rust-native vet runner.
+implementations/swift/  Swift-native vet runner.
+implementations/cpp/    C/C++ vet runner (hosted in Go).
 docs/                   Architecture notes.
 ```
 
@@ -49,8 +51,16 @@ From `implementations/rust`:
 cargo run -- ../../spec/conformance/max-function-parameters/rust
 ```
 
+From `implementations/cpp` (C/C++ sources, runner written in Go):
+
+```sh
+go run ./cmd/vet ../../spec/conformance/indent/cpp
+```
+
 The default enabled rule is `VET001`, which rejects functions with more than one
-parameter.
+parameter. The C/C++ runner currently implements header, file-length,
+indentation, and GitHub Actions rules; function-shape and casing rules are
+planned.
 
 Header rules are available behind CLI flags:
 
@@ -125,6 +135,16 @@ languages:
       indent:
         type: spaces
         width: 4
+  cpp:
+    files:
+      - src/...
+      - include/...
+    exclude:
+      - "build/**"
+    rules:
+      indent:
+        type: spaces
+        width: 4
 ```
 
 When `-c` or `--config` is omitted, vet loads `vet.yaml` from the current
@@ -193,11 +213,14 @@ That means:
 - Go users can run `go run`.
 - Swift users can run `swift run`.
 - Rust users can run `cargo run` or install a Rust-native binary.
+- C/C++ users run the C/C++ runner (Go-hosted binary or `go run`).
 - Rule semantics do not drift between implementations.
 
 The shared rule spec records both compatibility and implementation status for
-Go, Rust, and Swift. All current rules are compatible with all three languages
-and implemented by the native runners.
+Go, Rust, Swift, and C/C++ (`cpp`). Go, Rust, and Swift implement all current
+rules. C/C++ implements the rules that can be enforced safely without a full
+C/C++ parser; the rest are planned.
 
 See [docs/architecture.md](docs/architecture.md) for the rationale and
-implementation boundaries.
+implementation boundaries, including why the C/C++ runner is not written in
+C/C++.

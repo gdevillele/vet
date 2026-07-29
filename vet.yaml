@@ -43,3 +43,8 @@ languages:
       - implementations/swift/Sources/...
     exclude:
       - "**/*Tests.swift"
+  cpp:
+    files:
+      - implementations/cpp/...
+    exclude:
+      - "**/*_test.go"
