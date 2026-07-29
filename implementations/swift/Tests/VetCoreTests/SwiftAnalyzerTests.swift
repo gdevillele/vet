@@ -20,6 +20,18 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics[0].column, 6)
     }
 
+    func testHonorsDisabledMaxFunctionParameters() {
+        var config = VetConfig.default()
+        config.maxFunctionParameters.enabled = false
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func accepted(_ left: Int, _ right: Int) {}\n"
+        ))
+
+        XCTAssertEqual(diagnostics.count, 0)
+    }
+
     func testIgnoresCommasInsideNestedParameterTypes() {
         let source = """
         func accepted(_ handler: (Int, Int) -> Void) {}
@@ -402,11 +414,31 @@ final class SwiftAnalyzerTests: XCTestCase {
         var config = VetConfig.default()
         config.casing.enabled = true
         config.casing.functions = .camelCase
+        config.casing.ignoreNames = ["ExactIgnored"]
         config.casing.ignorePatterns = ["^Test[A-Z]"]
 
         let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
-            source: "func TestAccepted() {}\n"
+            source: """
+            func ExactIgnored() {}
+            func TestPatternIgnored() {}
+            func Rejected() {}
+            """
+        ))
+
+        XCTAssertEqual(diagnostics.count, 1)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionCasing)
+        XCTAssertEqual(diagnostics[0].line, 3)
+    }
+
+    func testHonorsOffCasingStyle() {
+        var config = VetConfig.default()
+        config.casing.enabled = true
+        config.casing.functions = .off
+
+        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "sample.swift",
+            source: "func rejected_name() {}\n"
         ))
 
         XCTAssertEqual(diagnostics.count, 0)

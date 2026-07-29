@@ -30,6 +30,16 @@ fn rejected(left: i32, right: i32) {}
 }
 
 #[test]
+fn honors_disabled_max_function_parameters() {
+    let mut config = Config::default();
+    config.max_function_parameters.enabled = false;
+
+    let diagnostics = analyze(config, "fn accepted(left: i32, right: i32) {}\n");
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
 fn does_not_count_method_receiver_as_parameter() {
     let source = r#"
 struct Sample;
@@ -297,9 +307,26 @@ fn honors_casing_ignores() {
     let mut config = Config::default();
     config.casing.enabled = true;
     config.casing.functions = CasingStyle::SnakeCase;
+    config.casing.ignore_names = vec!["ExactIgnored".to_string()];
     config.casing.ignore_patterns = vec!["^Test[A-Z]".to_string()];
 
-    let diagnostics = analyze(config, "fn TestAccepted() {}\n");
+    let diagnostics = analyze(
+        config,
+        "fn ExactIgnored() {}\nfn TestPatternIgnored() {}\nfn Rejected() {}\n",
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
+    assert_eq!(diagnostics[0].rule_id, RULE_FUNCTION_CASING);
+    assert_eq!(diagnostics[0].line, 3);
+}
+
+#[test]
+fn honors_off_casing_style() {
+    let mut config = Config::default();
+    config.casing.enabled = true;
+    config.casing.functions = CasingStyle::Off;
+
+    let diagnostics = analyze(config, "fn Rejected() {}\n");
 
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
 }

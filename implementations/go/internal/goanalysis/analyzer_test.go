@@ -41,6 +41,23 @@ var _ = func(first string, second string) {}
 	}
 }
 
+func TestAnalyzeFileHonorsDisabledMaxFunctionParameters(t *testing.T) {
+	cfg := config.Default()
+	cfg.MaxFunctionParameters.Enabled = false
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.go",
+		Source: []byte("package sample\n\nfunc accepted(left int, right int) {}\n"),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
+	}
+}
+
 func TestAnalyzeFileCountsGroupedParameterNames(t *testing.T) {
 	source := []byte(`package sample
 
@@ -428,14 +445,38 @@ func TestAnalyzeFileHonorsCasingIgnores(t *testing.T) {
 	cfg := config.Default()
 	cfg.Casing.Enabled = true
 	cfg.Casing.Functions = config.CasingCamelCase
+	cfg.Casing.IgnoreNames = []string{"ExactIgnored"}
 	cfg.Casing.IgnorePatterns = []string{"^Test[A-Z]"}
 
 	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
 		Path: "sample.go",
 		Source: []byte(`package sample
 
-func TestAccepted() {}
+func ExactIgnored() {}
+func TestPatternIgnored() {}
+func Rejected() {}
 `),
+	})
+	if err != nil {
+		t.Fatalf("AnalyzeFile returned error: %v", err)
+	}
+
+	if len(diagnostics) != 1 {
+		t.Fatalf("expected 1 diagnostic for the unignored name, got %d: %#v", len(diagnostics), diagnostics)
+	}
+	if diagnostics[0].RuleID != RuleFunctionCasing || diagnostics[0].Line != 5 {
+		t.Fatalf("expected an unignored function casing diagnostic on line 5, got %#v", diagnostics[0])
+	}
+}
+
+func TestAnalyzeFileHonorsOffCasingStyle(t *testing.T) {
+	cfg := config.Default()
+	cfg.Casing.Enabled = true
+	cfg.Casing.Functions = config.CasingOff
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.go",
+		Source: []byte("package sample\n\nfunc rejected_name() {}\n"),
 	})
 	if err != nil {
 		t.Fatalf("AnalyzeFile returned error: %v", err)
