@@ -22,6 +22,19 @@ const (
 	defaultConfigFilename = "vet.yaml"
 )
 
+// unsupportedCLIFlags are accepted by flag parsing for CLI shape parity but
+// are not supported by the C/C++ analyzer. Visiting any of them is an error.
+var unsupportedCLIFlags = []string{
+	"max-function-parameters",
+	"max-function-body-lines",
+	"function-docstring-policy",
+	"casing",
+	"function-casing",
+	"variable-casing",
+	"type-casing",
+	"constant-casing",
+}
+
 type Invocation struct {
 	Args   []string
 	Stdout io.Writer
@@ -78,20 +91,20 @@ func Run(invocation Invocation) int {
 	configPath := flags.String("config", "", "path to vet YAML config file")
 	configShortPath := flags.String("c", "", "path to vet YAML config file")
 	format := flags.String("format", "text", "output format: text or json")
-	maxFunctionParameters := flags.Int("max-function-parameters", config.DefaultMaxFunctionParameters, "maximum allowed function parameters")
+	maxFunctionParameters := flags.Int("max-function-parameters", config.DefaultMaxFunctionParameters, "maximum allowed function parameters (not supported for C/C++)")
 	requireFileHeader := flags.Bool("require-file-header", false, "require every source file to have a leading header comment")
 	minFileHeaderLength := flags.Int("min-file-header-length", 0, "minimum header length in characters; 0 disables the bound")
 	maxFileHeaderLength := flags.Int("max-file-header-length", 0, "maximum header length in characters; 0 disables the bound")
 	maxSourceFileLines := flags.Int("max-source-file-lines", 0, "maximum source file lines; 0 disables the bound")
-	maxFunctionBodyLines := flags.Int("max-function-body-lines", 0, "maximum function body lines; 0 disables the bound")
-	functionDocstringPolicy := flags.String("function-docstring-policy", string(config.FunctionDocstringOptional), "function docstring policy: forbidden, optional, or mandatory")
+	maxFunctionBodyLines := flags.Int("max-function-body-lines", 0, "maximum function body lines (not supported for C/C++)")
+	functionDocstringPolicy := flags.String("function-docstring-policy", string(config.FunctionDocstringOptional), "function docstring policy: forbidden, optional, or mandatory (not supported for C/C++)")
 	indentType := flags.String("indent-type", string(config.IndentLanguageDefault), "indent type: tabs, spaces, or language-default")
 	indentWidth := flags.Int("indent-width", 0, "space indentation width; 0 disables the width check")
-	casingEnabled := flags.Bool("casing", false, "enable identifier casing checks")
-	functionCasing := flags.String("function-casing", string(config.CasingLanguageDefault), "function casing style")
-	variableCasing := flags.String("variable-casing", string(config.CasingLanguageDefault), "variable casing style")
-	typeCasing := flags.String("type-casing", string(config.CasingLanguageDefault), "type casing style")
-	constantCasing := flags.String("constant-casing", string(config.CasingLanguageDefault), "constant casing style")
+	casingEnabled := flags.Bool("casing", false, "enable identifier casing checks (not supported for C/C++)")
+	functionCasing := flags.String("function-casing", string(config.CasingLanguageDefault), "function casing style (not supported for C/C++)")
+	variableCasing := flags.String("variable-casing", string(config.CasingLanguageDefault), "variable casing style (not supported for C/C++)")
+	typeCasing := flags.String("type-casing", string(config.CasingLanguageDefault), "type casing style (not supported for C/C++)")
+	constantCasing := flags.String("constant-casing", string(config.CasingLanguageDefault), "constant casing style (not supported for C/C++)")
 	githubActionsPinned := flags.Bool("github-actions-pinned", false, "require GitHub workflow step actions to use full-length commit SHA pins")
 	version := flags.Bool("version", false, "print version")
 
@@ -137,9 +150,15 @@ func Run(invocation Invocation) int {
 		cfg = loadedConfig
 	}
 
-	if visited["max-function-parameters"] {
-		cfg.MaxFunctionParameters.Max = *maxFunctionParameters
+	// Unsupported C/C++ rules are not enforced. Reject explicit CLI visits so a
+	// successful exit cannot be mistaken for a clean pass on those rules.
+	for _, name := range unsupportedCLIFlags {
+		if visited[name] {
+			fmt.Fprintf(invocation.Stderr, "vet: -%s is not supported for C/C++\n", name)
+			return 2
+		}
 	}
+
 	if visited["require-file-header"] {
 		cfg.SourceFileHeader.Required = *requireFileHeader
 	}
@@ -152,44 +171,38 @@ func Run(invocation Invocation) int {
 	if visited["max-source-file-lines"] {
 		cfg.SourceFileLines.Max = *maxSourceFileLines
 	}
-	if visited["max-function-body-lines"] {
-		cfg.FunctionBodyLines.Max = *maxFunctionBodyLines
-	}
-	if visited["function-docstring-policy"] {
-		cfg.FunctionDocstring.Policy = config.FunctionDocstringPolicy(*functionDocstringPolicy)
-	}
 	if visited["indent-type"] {
 		cfg.Indent.Type = config.IndentType(*indentType)
 	}
 	if visited["indent-width"] {
 		cfg.Indent.Width = *indentWidth
 	}
-	if visited["casing"] {
-		cfg.Casing.Enabled = *casingEnabled
-	}
-	if visited["function-casing"] {
-		cfg.Casing.Enabled = true
-		cfg.Casing.Functions = config.CasingStyle(*functionCasing)
-	}
-	if visited["variable-casing"] {
-		cfg.Casing.Enabled = true
-		cfg.Casing.Variables = config.CasingStyle(*variableCasing)
-	}
-	if visited["type-casing"] {
-		cfg.Casing.Enabled = true
-		cfg.Casing.Types = config.CasingStyle(*typeCasing)
-	}
-	if visited["constant-casing"] {
-		cfg.Casing.Enabled = true
-		cfg.Casing.Constants = config.CasingStyle(*constantCasing)
-	}
 	if visited["github-actions-pinned"] {
 		cfg.GithubActionsPinned.Enabled = *githubActionsPinned
 	}
 
+	// Silence unused-variable warnings for unsupported flag bindings that are
+	// only consulted via Visit (rejected above when set).
+	_ = maxFunctionParameters
+	_ = maxFunctionBodyLines
+	_ = functionDocstringPolicy
+	_ = casingEnabled
+	_ = functionCasing
+	_ = variableCasing
+	_ = typeCasing
+	_ = constantCasing
+
 	if err := config.Validate(cfg); err != nil {
 		fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
 		return 2
+	}
+
+	if active := config.ActiveUnsupportedRules(cfg); len(active) > 0 {
+		fmt.Fprintf(
+			invocation.Stderr,
+			"vet: warning: ignoring unsupported C/C++ rule settings: %s\n",
+			strings.Join(active, ", "),
+		)
 	}
 
 	selection := fileCollectionRequest{

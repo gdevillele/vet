@@ -136,6 +136,29 @@ languages:
 	}
 }
 
+func TestDefaultDisablesUnimplementedMaxFunctionParameters(t *testing.T) {
+	cfg := Default()
+	if cfg.MaxFunctionParameters.Enabled {
+		t.Fatalf("expected max-function-parameters disabled by default for C/C++")
+	}
+	if active := ActiveUnsupportedRules(cfg); len(active) != 0 {
+		t.Fatalf("expected no active unsupported rules in Default(), got %#v", active)
+	}
+}
+
+func TestActiveUnsupportedRulesReportsNonDefaultSettings(t *testing.T) {
+	cfg := Default()
+	cfg.MaxFunctionParameters.Enabled = true
+	cfg.FunctionBodyLines.Max = 10
+	cfg.FunctionDocstring.Policy = FunctionDocstringMandatory
+	cfg.Casing.Enabled = true
+
+	active := ActiveUnsupportedRules(cfg)
+	if len(active) != 4 {
+		t.Fatalf("expected 4 active unsupported rules, got %#v", active)
+	}
+}
+
 func TestValidateRejectsInvalidIndentType(t *testing.T) {
 	cfg := Default()
 	cfg.Indent.Type = "mixed"

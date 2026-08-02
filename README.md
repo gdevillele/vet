@@ -57,10 +57,11 @@ From `implementations/cpp` (C/C++ sources, runner written in Go):
 go run ./cmd/vet ../../spec/conformance/indent/cpp
 ```
 
-The default enabled rule is `VET001`, which rejects functions with more than one
-parameter. The C/C++ runner currently implements header, file-length,
-indentation, and GitHub Actions rules; function-shape and casing rules are
-planned.
+The default enabled rule for the Go/Rust/Swift runners is `VET001`, which
+rejects functions with more than one parameter. The C/C++ runner is a
+**subset** runner: header, file-length, indentation, and GitHub Actions rules
+only. Function-shape and casing rules are not supported for C/C++ (explicit CLI
+flags error with “not supported for C/C++”).
 
 Header rules are available behind CLI flags:
 
@@ -218,8 +219,9 @@ That means:
 
 The shared rule spec records both compatibility and implementation status for
 Go, Rust, Swift, and C/C++ (`cpp`). Go, Rust, and Swift implement all current
-rules. C/C++ implements the rules that can be enforced safely without a full
-C/C++ parser; the rest are planned.
+rules. C/C++ implements only the rules that can be enforced safely without a
+full C/C++ parser; function-shape and casing rules are `unimplemented` for
+`cpp`, not scheduled as future work.
 
 See [docs/architecture.md](docs/architecture.md) for the rationale and
 implementation boundaries, including why the C/C++ runner is not written in

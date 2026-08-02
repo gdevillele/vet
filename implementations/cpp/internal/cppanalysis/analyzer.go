@@ -207,7 +207,7 @@ func leadingIndent(line string) string {
 }
 
 func findSourceFileHeader(source string) sourceFileHeader {
-	cursor := 0
+	cursor := skipUTF8BOM(source, 0)
 
 	for {
 		cursor = skipWhitespace(source, cursor)
@@ -251,6 +251,14 @@ func findSourceFileHeader(source string) sourceFileHeader {
 			FirstCodeOffset: cursor,
 		}
 	}
+}
+
+// skipUTF8BOM advances past a leading UTF-8 byte-order mark (EF BB BF / U+FEFF).
+func skipUTF8BOM(source string, cursor int) int {
+	if cursor == 0 && strings.HasPrefix(source, "\ufeff") {
+		return len("\ufeff")
+	}
+	return cursor
 }
 
 func skipWhitespace(source string, cursor int) int {
@@ -365,6 +373,11 @@ func nonCodeLeadingLines(source string) map[int]bool {
 	cursor := 0
 	line := 1
 
+	// Skip a leading UTF-8 BOM so it is not misread as code.
+	if len(bytes) >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF {
+		cursor = 3
+	}
+
 	for cursor < len(bytes) {
 		if bytes[cursor] == '\n' {
 			line++
@@ -373,8 +386,36 @@ func nonCodeLeadingLines(source string) map[int]bool {
 		}
 
 		if cursor+1 < len(bytes) && bytes[cursor] == '/' && bytes[cursor+1] == '/' {
-			cursor = skipLine(source, cursor)
-			line++
+			// Line comments continue across physical lines when the previous
+			// physical line ends in an unescaped backslash (C/C++ phase 2).
+			startLine := line
+			cursor += 2
+			for cursor < len(bytes) {
+				if bytes[cursor] == '\\' {
+					if cursor+1 < len(bytes) && bytes[cursor+1] == '\n' {
+						line++
+						if line > startLine {
+							ignored[line] = true
+						}
+						cursor += 2
+						continue
+					}
+					if cursor+2 < len(bytes) && bytes[cursor+1] == '\r' && bytes[cursor+2] == '\n' {
+						line++
+						if line > startLine {
+							ignored[line] = true
+						}
+						cursor += 3
+						continue
+					}
+				}
+				if bytes[cursor] == '\n' {
+					line++
+					cursor++
+					break
+				}
+				cursor++
+			}
 			continue
 		}
 
@@ -431,10 +472,17 @@ func nonCodeLeadingLines(source string) map[int]bool {
 			continue
 		}
 
-		// C++11 raw string literals: R"delim( ... )delim"
+		// C++11 raw string literals: R"delim( ... )delim" (optional L/u/U/u8 prefix).
 		if isRawStringPrefix(bytes, cursor) {
 			startLine := line
-			cursor, line = skipRawString(bytes, cursor, line)
+			next, nextLine, ok := skipRawString(bytes, cursor, line)
+			if !ok {
+				// Fail closed: treat only 'R' as consumed so the following '"'
+				// (if any) is scanned as an ordinary string literal.
+				cursor++
+				continue
+			}
+			cursor, line = next, nextLine
 			for ignoredLine := startLine + 1; ignoredLine <= line; ignoredLine++ {
 				ignored[ignoredLine] = true
 			}
@@ -447,6 +495,13 @@ func nonCodeLeadingLines(source string) map[int]bool {
 	return ignored
 }
 
+func isIdentifierByte(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_'
+}
+
+// isRawStringPrefix reports whether bytes[cursor] starts a C++ raw string
+// prefix token (optional encoding prefix L/u/U/u8, then R"). The R" sequence
+// must begin at a token boundary so identifier tails like fooR" are rejected.
 func isRawStringPrefix(bytes []byte, cursor int) bool {
 	if cursor >= len(bytes) || bytes[cursor] != 'R' {
 		return false
@@ -454,21 +509,59 @@ func isRawStringPrefix(bytes []byte, cursor int) bool {
 	if cursor+1 >= len(bytes) || bytes[cursor+1] != '"' {
 		return false
 	}
+
+	if cursor == 0 {
+		return true
+	}
+
+	// u8R"
+	if cursor >= 2 && bytes[cursor-2] == 'u' && bytes[cursor-1] == '8' {
+		return cursor == 2 || !isIdentifierByte(bytes[cursor-3])
+	}
+
+	// L / u / U encoding prefixes
+	prev := bytes[cursor-1]
+	if prev == 'L' || prev == 'u' || prev == 'U' {
+		return cursor == 1 || !isIdentifierByte(bytes[cursor-2])
+	}
+
+	return !isIdentifierByte(prev)
+}
+
+// isValidRawStringDChar reports whether b is allowed in a C++ raw-string
+// d-char-sequence. The standard forbids space, ), \, control characters, and
+// quotation marks among others; d-char-sequence length is at most 16.
+func isValidRawStringDChar(b byte) bool {
+	switch b {
+	case ' ', '\t', '\n', '\r', '\f', '\v', '"', '\\', ')', '(':
+		return false
+	}
+	// Keep the scanner ASCII-oriented: reject DEL and non-printable controls.
+	if b < 0x20 || b > 0x7E {
+		return false
+	}
 	return true
 }
 
-func skipRawString(bytes []byte, cursor int, line int) (int, int) {
-	// R"delim(
-	cursor += 2 // skip R"
+// skipRawString advances past a well-formed raw string starting at R".
+// ok is false when the delimiter is invalid; the caller should fail closed.
+func skipRawString(bytes []byte, cursor int, line int) (int, int, bool) {
+	// bytes[cursor] is 'R', bytes[cursor+1] is '"'.
+	cursor += 2
 	delimStart := cursor
-	for cursor < len(bytes) && bytes[cursor] != '(' {
-		if bytes[cursor] == '\n' {
-			line++
+	for cursor < len(bytes) {
+		ch := bytes[cursor]
+		if ch == '(' {
+			break
+		}
+		if !isValidRawStringDChar(ch) || cursor-delimStart >= 16 {
+			return 0, line, false
 		}
 		cursor++
 	}
-	if cursor >= len(bytes) {
-		return cursor, line
+	if cursor >= len(bytes) || bytes[cursor] != '(' {
+		// Never found a valid opening parenthesis after R".
+		return 0, line, false
 	}
 	delimiter := string(bytes[delimStart:cursor])
 	cursor++ // skip (
@@ -481,9 +574,11 @@ func skipRawString(bytes []byte, cursor int, line int) (int, int) {
 			continue
 		}
 		if cursor+len(closing) <= len(bytes) && string(bytes[cursor:cursor+len(closing)]) == closing {
-			return cursor + len(closing), line
+			return cursor + len(closing), line, true
 		}
 		cursor++
 	}
-	return cursor, line
+	// Unterminated raw string: still treat the span as non-code through EOF so
+	// partial multi-line raw content is not indent-checked.
+	return cursor, line, true
 }

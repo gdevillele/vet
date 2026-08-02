@@ -46,9 +46,13 @@ go test ./...
 | VET014 | github-actions-pinned        | implemented |
 
 Function-shape and casing rules (`VET001`, `VET006`, `VET007`, `VET010`–`VET013`)
-are declared **planned**. They need a real C/C++ syntax model (for example
-tree-sitter or libclang) before they can be enforced without brittle false
-positives around macros and templates.
+are **not supported** for C/C++ and are **disabled by default**. The shared
+spec marks them `implementation: unimplemented` (compatible but not scheduled
+for this Go-hosted, line-based runner). Explicit CLI flags for those rules exit
+with an error (`not supported for C/C++`). Non-default values from a config file
+produce a stderr warning and are ignored. Enforcing them safely would need a
+real C/C++ syntax model (macros, templates); that is intentionally out of scope
+here.
 
 ## Language defaults
 

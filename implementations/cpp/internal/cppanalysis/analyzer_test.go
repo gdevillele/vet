@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gdevillele/vet/implementations/cpp/internal/config"
+	"github.com/gdevillele/vet/implementations/cpp/internal/diagnostic"
 )
 
 func TestAnalyzeFileReportsMissingRequiredHeader(t *testing.T) {
@@ -204,6 +205,97 @@ func TestAnalyzeFileIgnoresIndentInsideRawString(t *testing.T) {
 	if len(diagnostics) != 0 {
 		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
 	}
+}
+
+func TestAnalyzeFileIgnoresIndentInsidePrefixedRawString(t *testing.T) {
+	cfg := config.Default()
+	cfg.Indent.Type = config.IndentSpaces
+
+	for _, prefix := range []string{"u8", "L", "u", "U"} {
+		source := "const char *text = " + prefix + "R\"(\n\ttabbed raw string\n)\";\n"
+		diagnostics := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+			Path:   "sample.cpp",
+			Source: []byte(source),
+		})
+		if len(diagnostics) != 0 {
+			t.Fatalf("prefix %q: expected no diagnostics, got %d: %#v", prefix, len(diagnostics), diagnostics)
+		}
+	}
+}
+
+func TestAnalyzeFileMalformedRawStringDoesNotSuppressLaterIndent(t *testing.T) {
+	cfg := config.Default()
+	cfg.Indent.Type = config.IndentSpaces
+
+	// Missing '(' after R" is not a valid raw string. The tab-indented line
+	// that follows must still be checked (fail closed).
+	source := []byte("const char *s = R\"hello\";\n\treturn 0;\n")
+	diagnostics := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.cpp",
+		Source: source,
+	})
+
+	if !hasRuleOnLine(diagnostics, RuleIndentType, 2) {
+		t.Fatalf("expected VET008 on line 2 after malformed raw string, got %#v", diagnostics)
+	}
+}
+
+func TestAnalyzeFileIdentifierAdjacentRDoesNotStartRawString(t *testing.T) {
+	cfg := config.Default()
+	cfg.Indent.Type = config.IndentSpaces
+
+	// fooR" is not a raw-string token; later tab indent must still be reported.
+	source := []byte("int fooR = 1;\nconst char *s = fooR\"(\n\tnot raw\n)\";\n\treturn 0;\n")
+	diagnostics := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.cpp",
+		Source: source,
+	})
+
+	if !hasRuleOnLine(diagnostics, RuleIndentType, 5) {
+		t.Fatalf("expected VET008 on line 5 after identifier-adjacent R\", got %#v", diagnostics)
+	}
+}
+
+func TestAnalyzeFileAcceptsHeaderAfterUTF8BOM(t *testing.T) {
+	cfg := config.Default()
+	cfg.SourceFileHeader.Required = true
+	cfg.SourceFileHeader.MinLength = 10
+
+	// UTF-8 BOM + sufficient header comment.
+	source := append([]byte{0xEF, 0xBB, 0xBF}, []byte("// Project header\nint main(void) { return 0; }\n")...)
+	diagnostics := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.c",
+		Source: source,
+	})
+
+	if len(diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics with BOM + header, got %d: %#v", len(diagnostics), diagnostics)
+	}
+}
+
+func TestAnalyzeFileIgnoresIndentOnSplicedLineComment(t *testing.T) {
+	cfg := config.Default()
+	cfg.Indent.Type = config.IndentSpaces
+
+	// Physical line after // ...\ is still part of the comment (phase 2 splice).
+	source := []byte("// continued comment\\\n\tstill comment\nint main(void) { return 0; }\n")
+	diagnostics := New(cfg).AnalyzeFile(AnalyzeFileRequest{
+		Path:   "sample.c",
+		Source: source,
+	})
+
+	if len(diagnostics) != 0 {
+		t.Fatalf("expected no indent diagnostics for spliced // comment, got %#v", diagnostics)
+	}
+}
+
+func hasRuleOnLine(diagnostics []diagnostic.Diagnostic, ruleID string, line int) bool {
+	for _, item := range diagnostics {
+		if item.RuleID == ruleID && item.Line == line {
+			return true
+		}
+	}
+	return false
 }
 
 func TestAnalyzeWorkflowFileReportsUnpinnedAction(t *testing.T) {

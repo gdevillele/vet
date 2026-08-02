@@ -29,7 +29,7 @@ rules:
         implementation: implemented
       cpp:
         status: compatible
-        implementation: planned
+        implementation: unimplemented
     summary: Functions must not declare more parameters than the configured maximum.
     notes:
       - Receivers such as Go method receivers are not counted as function parameters.
@@ -137,7 +137,7 @@ rules:
         implementation: implemented
       cpp:
         status: compatible
-        implementation: planned
+        implementation: unimplemented
     summary: Function bodies must not exceed the configured number of physical lines.
     notes:
       - A value of 0 disables the rule.
@@ -159,7 +159,7 @@ rules:
         implementation: implemented
       cpp:
         status: compatible
-        implementation: planned
+        implementation: unimplemented
     summary: Function docstrings must follow the configured policy.
     notes:
       - Supported policies are forbidden, optional, and mandatory.
@@ -233,7 +233,7 @@ rules:
         implementation: implemented
       cpp:
         status: compatible
-        implementation: planned
+        implementation: unimplemented
     summary: Function and method names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
@@ -258,7 +258,7 @@ rules:
         implementation: implemented
       cpp:
         status: compatible
-        implementation: planned
+        implementation: unimplemented
     summary: Variable names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
@@ -281,7 +281,7 @@ rules:
         implementation: implemented
       cpp:
         status: compatible
-        implementation: planned
+        implementation: unimplemented
     summary: Type names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
@@ -306,7 +306,7 @@ rules:
         implementation: implemented
       cpp:
         status: compatible
-        implementation: planned
+        implementation: unimplemented
     summary: Constant names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.

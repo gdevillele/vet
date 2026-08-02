@@ -34,8 +34,9 @@ integration for that ecosystem:
 - Go: `go/parser`, `go/ast`, and later `go/packages`;
 - Swift: SwiftSyntax and SwiftPM plugins;
 - Rust: rust-analyzer syntax crates, `syn`, or compiler-integrated tooling;
-- C/C++: comment/line analysis for the currently implemented rules; a future
-  tree-sitter or libclang backend for function-shape and casing rules.
+- C/C++: comment/line analysis only for the subset of rules that do not require
+  a full C/C++ syntax model (headers, file length, indentation, GitHub Actions
+  pinning). Function-shape and casing rules are not supported for C/C++.
 
 ### Why the C/C++ Runner Is Not Written in C/C++
 
@@ -48,9 +49,9 @@ Writing C/C++ analysis in C/C++ also has a higher implementation risk for a
 quality gate. Preprocessor macros, templates, and ambiguous declarations make
 hand-rolled parsing brittle. Hosting the C/C++ runner in Go keeps the tool
 memory-safe, easy to distribute, and aligned with the existing Go runner while
-still analyzing C and C++ sources under the shared rule contract. When function
-and casing rules are added, the preferred path is a battle-tested C/C++ parse
-library (tree-sitter or libclang bindings), not a from-scratch C++ AST walker.
+still analyzing C and C++ sources under a **subset** of the shared rule contract
+(line/comment/indent/CI rules only). Language-aware function-shape and casing
+rules remain unsupported for C/C++ rather than scheduled as future work.
 
 ## Avoiding Rule Drift
 
@@ -87,10 +88,11 @@ Implementation statuses:
 - `not-applicable`: the rule is incompatible with the language.
 
 All current rules are compatible with Go, Rust, Swift, and C/C++ (`cpp`). The
-Go, Rust, and Swift runners implement every rule. The C/C++ runner currently
-implements header, file-length, indentation, and GitHub Actions pinning rules;
-function-shape and casing rules are planned until a reliable C/C++ syntax model
-is integrated.
+Go, Rust, and Swift runners implement every rule. The C/C++ runner is a
+**subset** runner: it implements header, file-length, indentation, and GitHub
+Actions pinning rules. Function-shape and casing rules (`VET001`, `VET006`,
+`VET007`, `VET010`–`VET013`) remain `implementation: unimplemented` for `cpp`
+(not a roadmap promise).
 
 ## Implementation Boundary
 

@@ -170,8 +170,10 @@ type githubActionsPinnedFile struct {
 
 func Default() Config {
 	return Config{
+		// VET001 is unimplemented for C/C++; keep it disabled so a zero-flag
+		// run does not appear to enforce a rule the analyzer never consults.
 		MaxFunctionParameters: MaxFunctionParametersRule{
-			Enabled: true,
+			Enabled: false,
 			Max:     DefaultMaxFunctionParameters,
 		},
 		SourceFileHeader: SourceFileHeaderRule{
@@ -203,6 +205,38 @@ func Default() Config {
 			Enabled: false,
 		},
 	}
+}
+
+// UnsupportedRuleNames lists config keys that the C/C++ analyzer does not
+// enforce. Non-default values for these settings must not be presented as a
+// clean silent success.
+func UnsupportedRuleNames() []string {
+	return []string{
+		"max-function-parameters",
+		"max-function-body-lines",
+		"function-docstring",
+		"casing",
+	}
+}
+
+// ActiveUnsupportedRules returns unsupported rule keys that are configured
+// with a non-default / active setting. Callers should error or warn rather
+// than imply those rules were enforced.
+func ActiveUnsupportedRules(cfg Config) []string {
+	active := make([]string, 0, 4)
+	if cfg.MaxFunctionParameters.Enabled {
+		active = append(active, "max-function-parameters")
+	}
+	if cfg.FunctionBodyLines.Max > 0 {
+		active = append(active, "max-function-body-lines")
+	}
+	if cfg.FunctionDocstring.Policy != FunctionDocstringOptional {
+		active = append(active, "function-docstring")
+	}
+	if cfg.Casing.Enabled {
+		active = append(active, "casing")
+	}
+	return active
 }
 
 func LoadFile(request LoadFileRequest) (Config, error) {

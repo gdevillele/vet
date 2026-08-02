@@ -108,7 +108,9 @@ func TestCppImplementedRulesMatchRunner(t *testing.T) {
 		"VET009": true,
 		"VET014": true,
 	}
-	planned := map[string]bool{
+	// Language-aware rules are intentionally not scheduled for the Go-hosted
+	// line-based C/C++ runner (no roadmap "planned" promise).
+	unimplemented := map[string]bool{
 		"VET001": true,
 		"VET006": true,
 		"VET007": true,
@@ -128,9 +130,9 @@ func TestCppImplementedRulesMatchRunner(t *testing.T) {
 			if entry.Implementation != "implemented" {
 				t.Fatalf("rule %s expected implemented for cpp, got %q", ruleID, entry.Implementation)
 			}
-		case planned[ruleID]:
-			if entry.Implementation != "planned" {
-				t.Fatalf("rule %s expected planned for cpp, got %q", ruleID, entry.Implementation)
+		case unimplemented[ruleID]:
+			if entry.Implementation != "unimplemented" {
+				t.Fatalf("rule %s expected unimplemented for cpp, got %q", ruleID, entry.Implementation)
 			}
 		default:
 			t.Fatalf("rule %s has no expected cpp implementation status", ruleID)

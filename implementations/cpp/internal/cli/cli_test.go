@@ -182,3 +182,69 @@ func TestRunPrintsVersion(t *testing.T) {
 		t.Fatalf("expected version %q, got %q", Version, stdout.String())
 	}
 }
+
+func TestRunRejectsUnsupportedRuleFlags(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "sample.c")
+	if err := os.WriteFile(file, []byte("int main(void) { return 0; }\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cases := [][]string{
+		{"-max-function-parameters", "2", dir},
+		{"-max-function-body-lines", "5", dir},
+		{"-function-docstring-policy", "mandatory", dir},
+		{"-casing", dir},
+		{"-function-casing", "camelCase", dir},
+	}
+	for _, args := range cases {
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		code := Run(Invocation{
+			Args:   args,
+			Stdout: &stdout,
+			Stderr: &stderr,
+		})
+		if code != 2 {
+			t.Fatalf("args %v: expected exit code 2, got %d; stderr=%q", args, code, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "not supported for C/C++") {
+			t.Fatalf("args %v: expected not-supported message, got %q", args, stderr.String())
+		}
+	}
+}
+
+func TestRunWarnsOnUnsupportedRulesFromConfig(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "sample.c")
+	if err := os.WriteFile(file, []byte("int main(void) { return 0; }\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+	configPath := filepath.Join(dir, "vet.yaml")
+	configData := []byte(`version: 1
+rules:
+  max-function-parameters:
+    enabled: true
+    max: 3
+`)
+	if err := os.WriteFile(configPath, configData, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"-c", configPath, file},
+		Stdout: &stdout,
+		Stderr: &stderr,
+	})
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "ignoring unsupported C/C++ rule settings") {
+		t.Fatalf("expected unsupported-rule warning, got %q", stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "max-function-parameters") {
+		t.Fatalf("expected max-function-parameters in warning, got %q", stderr.String())
+	}
+}
