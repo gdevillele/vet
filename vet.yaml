@@ -43,3 +43,13 @@ languages:
       - implementations/swift/Sources/...
     exclude:
       - "**/*Tests.swift"
+  cpp:
+    # Runner sources are Go, not C/C++. Point at the in-repo conformance fixtures
+    # (intentional negative samples — pass explicit paths for product code).
+    files:
+      - spec/conformance/indent/cpp
+      - spec/conformance/source-file-header/cpp
+      - spec/conformance/source-file-lines/cpp
+    rules:
+      max-function-parameters:
+        enabled: false

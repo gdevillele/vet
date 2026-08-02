@@ -54,3 +54,14 @@ languages:
       indent:
         type: spaces
         width: 4
+  cpp:
+    files:
+      - src/...
+      - include/...
+    exclude:
+      - "build/**"
+      - "**/generated/**"
+    rules:
+      indent:
+        type: spaces
+        width: 4

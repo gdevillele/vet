@@ -3,6 +3,7 @@ languages:
   - go
   - rust
   - swift
+  - cpp
 diagnostic_fields:
   - rule_id
   - severity
@@ -26,6 +27,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: unimplemented
     summary: Functions must not declare more parameters than the configured maximum.
     notes:
       - Receivers such as Go method receivers are not counted as function parameters.
@@ -44,6 +48,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: implemented
     summary: Source files must declare a leading file header when enabled.
     notes:
       - Go build constraints and generated-code markers do not count as file headers.
@@ -60,6 +67,9 @@ rules:
         status: compatible
         implementation: implemented
       swift:
+        status: compatible
+        implementation: implemented
+      cpp:
         status: compatible
         implementation: implemented
     summary: Source file headers must be at least the configured number of characters.
@@ -81,6 +91,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: implemented
     summary: Source file headers must be at most the configured number of characters.
     notes:
       - A value of 0 disables the upper bound.
@@ -98,6 +111,9 @@ rules:
         status: compatible
         implementation: implemented
       swift:
+        status: compatible
+        implementation: implemented
+      cpp:
         status: compatible
         implementation: implemented
     summary: Source files must not exceed the configured number of physical lines.
@@ -119,6 +135,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: unimplemented
     summary: Function bodies must not exceed the configured number of physical lines.
     notes:
       - A value of 0 disables the rule.
@@ -138,6 +157,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: unimplemented
     summary: Function docstrings must follow the configured policy.
     notes:
       - Supported policies are forbidden, optional, and mandatory.
@@ -157,10 +179,13 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: implemented
     summary: Source indentation must use the configured indentation type.
     notes:
       - Supported types are tabs, spaces, and language-default.
-      - language-default means tabs for Go, spaces for Swift and Rust.
+      - language-default means tabs for Go, spaces for Swift, Rust, and C/C++.
       - Blank lines are ignored.
       - Only leading indentation is checked.
   VET009:
@@ -176,6 +201,9 @@ rules:
         status: compatible
         implementation: implemented
       swift:
+        status: compatible
+        implementation: implemented
+      cpp:
         status: compatible
         implementation: implemented
     summary: Space indentation must be a multiple of the configured width.
@@ -203,6 +231,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: unimplemented
     summary: Function and method names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
@@ -225,6 +256,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: unimplemented
     summary: Variable names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
@@ -245,6 +279,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: unimplemented
     summary: Type names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
@@ -267,6 +304,9 @@ rules:
       swift:
         status: compatible
         implementation: implemented
+      cpp:
+        status: compatible
+        implementation: unimplemented
     summary: Constant names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
@@ -284,6 +324,9 @@ rules:
         status: compatible
         implementation: implemented
       swift:
+        status: compatible
+        implementation: implemented
+      cpp:
         status: compatible
         implementation: implemented
     summary: GitHub workflow step actions must be pinned to full-length commit SHAs when enabled.
