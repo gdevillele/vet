@@ -2,11 +2,46 @@ package cli
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+// formatOK is a CommandRunner that reports clang-format present and every
+// file already formatted. Used by CLI tests that are not about VET008.
+type formatOK struct{}
+
+func (formatOK) LookPath(file string) (string, error) {
+	return "/usr/bin/" + file, nil
+}
+
+func (formatOK) Run(name string, args []string) ([]byte, int, error) {
+	return nil, 0, nil
+}
+
+// formatNeedsRewrite reports that every file would be rewritten by clang-format.
+type formatNeedsRewrite struct{}
+
+func (formatNeedsRewrite) LookPath(file string) (string, error) {
+	return "/usr/bin/" + file, nil
+}
+
+func (formatNeedsRewrite) Run(name string, args []string) ([]byte, int, error) {
+	return []byte("error: code should be clang-formatted\n"), 1, nil
+}
+
+// formatMissing reports that clang-format is not on PATH.
+type formatMissing struct{}
+
+func (formatMissing) LookPath(file string) (string, error) {
+	return "", errors.New("executable file not found in $PATH")
+}
+
+func (formatMissing) Run(name string, args []string) ([]byte, int, error) {
+	return nil, -1, errors.New("should not run")
+}
 
 func TestRunReportsMissingRequiredHeader(t *testing.T) {
 	dir := t.TempDir()
@@ -21,6 +56,7 @@ func TestRunReportsMissingRequiredHeader(t *testing.T) {
 		Args:   []string{"-require-file-header", dir},
 		Stdout: &stdout,
 		Stderr: &stderr,
+		Runner: formatOK{},
 	})
 
 	if code != 1 {
@@ -45,6 +81,7 @@ func TestRunReportsSourceFileLineLimit(t *testing.T) {
 		Args:   []string{"-max-source-file-lines", "3", dir},
 		Stdout: &stdout,
 		Stderr: &stderr,
+		Runner: formatOK{},
 	})
 
 	if code != 1 {
@@ -55,10 +92,10 @@ func TestRunReportsSourceFileLineLimit(t *testing.T) {
 	}
 }
 
-func TestRunReportsIndentType(t *testing.T) {
+func TestRunReportsFormatDiagnostics(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "sample.c")
-	source := []byte("int main(void) {\n\treturn 0;\n}\n")
+	source := []byte("int main(void){return 0;}\n")
 	if err := os.WriteFile(file, source, 0o600); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
@@ -66,16 +103,65 @@ func TestRunReportsIndentType(t *testing.T) {
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := Run(Invocation{
-		Args:   []string{"-indent-type", "spaces", dir},
+		Args:   []string{"-check-format", dir},
 		Stdout: &stdout,
 		Stderr: &stderr,
+		Runner: formatNeedsRewrite{},
 	})
 
 	if code != 1 {
-		t.Fatalf("expected exit code 1, got %d; stderr=%q", code, stderr.String())
+		t.Fatalf("expected exit code 1, got %d; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
 	}
 	if !strings.Contains(stdout.String(), "VET008") {
 		t.Fatalf("expected VET008 diagnostic, got %q", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "clang-format-formatted") {
+		t.Fatalf("expected format message, got %q", stdout.String())
+	}
+}
+
+func TestRunErrorsWhenClangFormatMissing(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "sample.c")
+	if err := os.WriteFile(file, []byte("int main(void) { return 0; }\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"-check-format", dir},
+		Stdout: &stdout,
+		Stderr: &stderr,
+		Runner: formatMissing{},
+	})
+
+	if code != 2 {
+		t.Fatalf("expected exit code 2, got %d; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
+	}
+	if !strings.Contains(stderr.String(), "clang-format not found in PATH") {
+		t.Fatalf("expected missing-tool error, got %q", stderr.String())
+	}
+}
+
+func TestRunSkipsFormatWhenDisabled(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "sample.c")
+	if err := os.WriteFile(file, []byte("int main(void) { return 0; }\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	code := Run(Invocation{
+		Args:   []string{"-check-format=false", dir},
+		Stdout: &stdout,
+		Stderr: &stderr,
+		Runner: formatMissing{},
+	})
+
+	if code != 0 {
+		t.Fatalf("expected exit code 0, got %d; stderr=%q stdout=%q", code, stderr.String(), stdout.String())
 	}
 }
 
@@ -87,16 +173,17 @@ func TestRunAcceptsRecursiveCppPattern(t *testing.T) {
 	}
 
 	file := filepath.Join(nested, "sample.hpp")
-	if err := os.WriteFile(file, []byte("int main() {\n\treturn 0;\n}\n"), 0o600); err != nil {
+	if err := os.WriteFile(file, []byte("int main(){return 0;}\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile returned error: %v", err)
 	}
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	code := Run(Invocation{
-		Args:   []string{"-indent-type", "spaces", filepath.Join(dir, "...")},
+		Args:   []string{"-check-format", filepath.Join(dir, "...")},
 		Stdout: &stdout,
 		Stderr: &stderr,
+		Runner: formatNeedsRewrite{},
 	})
 
 	if code != 1 {
@@ -204,6 +291,7 @@ func TestRunRejectsUnsupportedRuleFlags(t *testing.T) {
 			Args:   args,
 			Stdout: &stdout,
 			Stderr: &stderr,
+			Runner: formatOK{},
 		})
 		if code != 2 {
 			t.Fatalf("args %v: expected exit code 2, got %d; stderr=%q", args, code, stderr.String())
@@ -237,6 +325,7 @@ rules:
 		Args:   []string{"-c", configPath, file},
 		Stdout: &stdout,
 		Stderr: &stderr,
+		Runner: formatOK{},
 	})
 	if code != 0 {
 		t.Fatalf("expected exit code 0, got %d; stderr=%q stdout=%q", code, stderr.String(), stdout.String())

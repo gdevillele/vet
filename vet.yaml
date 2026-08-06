@@ -13,9 +13,8 @@ rules:
     max: 0
   function-docstring:
     policy: optional
-  indent:
-    type: language-default
-    width: 0
+  format:
+    enabled: true
   casing:
     enabled: false
     functions: language-default
@@ -47,9 +46,17 @@ languages:
     # Runner sources are Go, not C/C++. Point at the in-repo conformance fixtures
     # (intentional negative samples — pass explicit paths for product code).
     files:
-      - spec/conformance/indent/cpp
       - spec/conformance/source-file-header/cpp
       - spec/conformance/source-file-lines/cpp
+      - spec/conformance/source-format/cpp
     rules:
       max-function-parameters:
         enabled: false
+  typescript:
+    files:
+      - implementations/typescript/src/...
+    exclude:
+      - "**/*.test.ts"
+      - "dist/**"
+      - "node_modules/**"
+

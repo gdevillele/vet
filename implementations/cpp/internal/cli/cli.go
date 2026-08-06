@@ -39,6 +39,9 @@ type Invocation struct {
 	Args   []string
 	Stdout io.Writer
 	Stderr io.Writer
+	// Runner optionally overrides process execution for tests (clang-format).
+	// When nil, the production os/exec runner is used.
+	Runner cppanalysis.CommandRunner
 }
 
 type fileCollection struct {
@@ -98,8 +101,7 @@ func Run(invocation Invocation) int {
 	maxSourceFileLines := flags.Int("max-source-file-lines", 0, "maximum source file lines; 0 disables the bound")
 	maxFunctionBodyLines := flags.Int("max-function-body-lines", 0, "maximum function body lines (not supported for C/C++)")
 	functionDocstringPolicy := flags.String("function-docstring-policy", string(config.FunctionDocstringOptional), "function docstring policy: forbidden, optional, or mandatory (not supported for C/C++)")
-	indentType := flags.String("indent-type", string(config.IndentLanguageDefault), "indent type: tabs, spaces, or language-default")
-	indentWidth := flags.Int("indent-width", 0, "space indentation width; 0 disables the width check")
+	checkFormat := flags.Bool("check-format", true, "require sources to match clang-format")
 	casingEnabled := flags.Bool("casing", false, "enable identifier casing checks (not supported for C/C++)")
 	functionCasing := flags.String("function-casing", string(config.CasingLanguageDefault), "function casing style (not supported for C/C++)")
 	variableCasing := flags.String("variable-casing", string(config.CasingLanguageDefault), "variable casing style (not supported for C/C++)")
@@ -171,11 +173,8 @@ func Run(invocation Invocation) int {
 	if visited["max-source-file-lines"] {
 		cfg.SourceFileLines.Max = *maxSourceFileLines
 	}
-	if visited["indent-type"] {
-		cfg.Indent.Type = config.IndentType(*indentType)
-	}
-	if visited["indent-width"] {
-		cfg.Indent.Width = *indentWidth
+	if visited["check-format"] {
+		cfg.Format.Enabled = *checkFormat
 	}
 	if visited["github-actions-pinned"] {
 		cfg.GithubActionsPinned.Enabled = *githubActionsPinned
@@ -222,7 +221,7 @@ func Run(invocation Invocation) int {
 		return 2
 	}
 
-	analyzer := cppanalysis.New(cfg)
+	analyzer := cppanalysis.NewWithRunner(cfg, invocation.Runner)
 	diagnostics := make([]diagnostic.Diagnostic, 0)
 	for _, file := range files {
 		source, err := os.ReadFile(file)
@@ -231,10 +230,14 @@ func Run(invocation Invocation) int {
 			return 2
 		}
 
-		fileDiagnostics := analyzer.AnalyzeFile(cppanalysis.AnalyzeFileRequest{
+		fileDiagnostics, err := analyzer.AnalyzeFile(cppanalysis.AnalyzeFileRequest{
 			Path:   file,
 			Source: source,
 		})
+		if err != nil {
+			fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
+			return 2
+		}
 		diagnostics = append(diagnostics, fileDiagnostics...)
 	}
 	if cfg.GithubActionsPinned.Enabled {

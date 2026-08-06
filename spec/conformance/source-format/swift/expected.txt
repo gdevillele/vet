@@ -1,0 +1,1 @@
+spec/conformance/source-format/swift/invalid.swift:1:1: VET008: file is not swift-format-formatted

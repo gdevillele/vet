@@ -1,0 +1,26 @@
+{
+  "name": "@vet/typescript",
+  "version": "0.1.0-dev",
+  "description": "TypeScript-native vet runner",
+  "type": "module",
+  "bin": {
+    "vet": "./bin/vet.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "vet": "node --import tsx src/cli.ts",
+    "test": "node --import tsx --test tests/**/*.test.ts"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2"
+  }
+}

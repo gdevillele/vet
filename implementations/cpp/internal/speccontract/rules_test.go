@@ -105,7 +105,6 @@ func TestCppImplementedRulesMatchRunner(t *testing.T) {
 		"VET004": true,
 		"VET005": true,
 		"VET008": true,
-		"VET009": true,
 		"VET014": true,
 	}
 	// Language-aware rules are intentionally not scheduled for the Go-hosted

@@ -11,7 +11,7 @@ pub struct Config {
     pub source_file_lines: SourceFileLinesRule,
     pub function_body_lines: FunctionBodyLinesRule,
     pub function_docstring: FunctionDocstringRule,
-    pub indent: IndentRule,
+    pub format: FormatRule,
     pub casing: CasingRule,
     pub github_actions_pinned: GithubActionsPinnedRule,
     pub file_selection: FileSelection,
@@ -53,18 +53,9 @@ pub struct FunctionDocstringRule {
     pub policy: FunctionDocstringPolicy,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "kebab-case")]
-pub enum IndentType {
-    Tabs,
-    Spaces,
-    LanguageDefault,
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct IndentRule {
-    pub r#type: IndentType,
-    pub width: i32,
+pub struct FormatRule {
+    pub enabled: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -175,7 +166,7 @@ struct RulesFile {
     function_body_lines: Option<FunctionBodyLinesFile>,
     #[serde(rename = "function-docstring")]
     function_docstring: Option<FunctionDocstringFile>,
-    indent: Option<IndentFile>,
+    format: Option<FormatFile>,
     casing: Option<CasingFile>,
     #[serde(rename = "github-actions-pinned")]
     github_actions_pinned: Option<GithubActionsPinnedFile>,
@@ -218,9 +209,8 @@ struct FunctionDocstringFile {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct IndentFile {
-    r#type: Option<IndentType>,
-    width: Option<i32>,
+struct FormatFile {
+    enabled: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -260,10 +250,7 @@ impl Default for Config {
             function_docstring: FunctionDocstringRule {
                 policy: FunctionDocstringPolicy::Optional,
             },
-            indent: IndentRule {
-                r#type: IndentType::LanguageDefault,
-                width: 0,
-            },
+            format: FormatRule { enabled: true },
             casing: CasingRule {
                 enabled: false,
                 functions: CasingStyle::LanguageDefault,
@@ -349,12 +336,9 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
         }
     }
 
-    if let Some(rule) = &rules.indent {
-        if let Some(indent_type) = rule.r#type {
-            config.indent.r#type = indent_type;
-        }
-        if let Some(width) = rule.width {
-            config.indent.width = width;
+    if let Some(rule) = &rules.format {
+        if let Some(enabled) = rule.enabled {
+            config.format.enabled = enabled;
         }
     }
 
@@ -422,9 +406,6 @@ pub fn validate(config: &Config) -> Result<(), ConfigError> {
         return Err(invalid(
             "max-function-body-lines.max must be zero or greater",
         ));
-    }
-    if config.indent.width < 0 {
-        return Err(invalid("indent.width must be zero or greater"));
     }
     for pattern in &config.casing.ignore_patterns {
         Regex::new(pattern).map_err(|err| {

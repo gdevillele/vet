@@ -1,6 +1,6 @@
 use crate::{
     analysis::{AnalyzeFileRequest, Analyzer},
-    config::{self, CasingStyle, Config, FunctionDocstringPolicy, IndentType, LoadFileRequest},
+    config::{self, CasingStyle, Config, FunctionDocstringPolicy, LoadFileRequest},
     diagnostic::Diagnostic,
 };
 use glob::glob;
@@ -27,8 +27,7 @@ struct CliOptions {
     max_source_file_lines: Option<i32>,
     max_function_body_lines: Option<i32>,
     function_docstring_policy: Option<FunctionDocstringPolicy>,
-    indent_type: Option<IndentType>,
-    indent_width: Option<i32>,
+    check_format: Option<bool>,
     casing_enabled: Option<bool>,
     function_casing: Option<CasingStyle>,
     variable_casing: Option<CasingStyle>,
@@ -241,6 +240,9 @@ fn parse_options(args: Vec<String>) -> Result<CliOptions, String> {
             "--require-file-header" | "-require-file-header" => {
                 options.require_file_header = Some(optional_bool(inline_value, flag)?);
             }
+            "--check-format" | "-check-format" => {
+                options.check_format = Some(optional_bool(inline_value, flag)?);
+            }
             "--casing" | "-casing" => {
                 options.casing_enabled = Some(optional_bool(inline_value, flag)?);
             }
@@ -294,10 +296,6 @@ fn value_flag_parsers() -> HashMap<&'static str, ValueParser> {
             "-function-docstring-policy",
             parse_function_docstring_policy,
         ),
-        ("--indent-type", parse_indent_type),
-        ("-indent-type", parse_indent_type),
-        ("--indent-width", parse_indent_width),
-        ("-indent-width", parse_indent_width),
         ("--function-casing", parse_function_casing),
         ("-function-casing", parse_function_casing),
         ("--variable-casing", parse_variable_casing),
@@ -365,21 +363,6 @@ fn parse_function_docstring_policy(
         "mandatory" => FunctionDocstringPolicy::Mandatory,
         _ => return Err(format!("{flag} must be forbidden, optional, or mandatory")),
     });
-    Ok(())
-}
-
-fn parse_indent_type(options: &mut CliOptions, value: &str, flag: &str) -> Result<(), String> {
-    options.indent_type = Some(match value {
-        "tabs" => IndentType::Tabs,
-        "spaces" => IndentType::Spaces,
-        "language-default" => IndentType::LanguageDefault,
-        _ => return Err(format!("{flag} must be tabs, spaces, or language-default")),
-    });
-    Ok(())
-}
-
-fn parse_indent_width(options: &mut CliOptions, value: &str, flag: &str) -> Result<(), String> {
-    options.indent_width = Some(int_value(value, flag)?);
     Ok(())
 }
 
@@ -522,11 +505,8 @@ fn apply_options(config: &mut Config, options: &CliOptions) {
     if let Some(policy) = options.function_docstring_policy {
         config.function_docstring.policy = policy;
     }
-    if let Some(indent_type) = options.indent_type {
-        config.indent.r#type = indent_type;
-    }
-    if let Some(width) = options.indent_width {
-        config.indent.width = width;
+    if let Some(enabled) = options.check_format {
+        config.format.enabled = enabled;
     }
     if let Some(enabled) = options.casing_enabled {
         config.casing.enabled = enabled;

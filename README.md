@@ -7,8 +7,8 @@
 The project intentionally uses **per-language runners** instead of one
 universal binary. A Go project should be able to run the Go vet runner with Go
 tooling, a Swift project with Swift tooling, and a Rust project with Rust
-tooling. C/C++ is analyzed by a dedicated runner hosted in Go (see the C/C++
-section below).
+tooling. TypeScript projects use the Node/TypeScript runner. C/C++ is analyzed
+by a dedicated runner hosted in Go (see the C/C++ section below).
 
 The shared part is the rule contract: rule IDs, defaults, language
 compatibility, diagnostics, and conformance fixtures live in `spec/`. Each
@@ -17,12 +17,13 @@ language implementation translates its syntax into those shared rules.
 ## Repository Layout
 
 ```text
-spec/                   Shared rule definitions and conformance fixtures.
-implementations/go/     Go-native vet runner.
-implementations/rust/   Rust-native vet runner.
-implementations/swift/  Swift-native vet runner.
-implementations/cpp/    C/C++ vet runner (hosted in Go).
-docs/                   Architecture notes.
+spec/                        Shared rule definitions and conformance fixtures.
+implementations/go/          Go-native vet runner.
+implementations/rust/        Rust-native vet runner.
+implementations/swift/       Swift-native vet runner.
+implementations/typescript/  TypeScript-native vet runner (Node).
+implementations/cpp/         C/C++ vet runner (hosted in Go).
+docs/                        Architecture notes.
 ```
 
 ## Current Go Runner
@@ -42,7 +43,7 @@ go run ./cmd/vet ./...
 From `implementations/swift`:
 
 ```sh
-swift run vet ../../spec/conformance/max-function-parameters/swift
+swift run vet ../../spec/conformance/source-format/swift
 ```
 
 From `implementations/rust`:
@@ -54,14 +55,26 @@ cargo run -- ../../spec/conformance/max-function-parameters/rust
 From `implementations/cpp` (C/C++ sources, runner written in Go):
 
 ```sh
-go run ./cmd/vet ../../spec/conformance/indent/cpp
+go run ./cmd/vet ../../spec/conformance/source-format/cpp
 ```
 
-The default enabled rule for the Go/Rust/Swift runners is `VET001`, which
-rejects functions with more than one parameter. The C/C++ runner is a
-**subset** runner: header, file-length, indentation, and GitHub Actions rules
-only. Function-shape and casing rules are not supported for C/C++ (explicit CLI
-flags error with “not supported for C/C++”).
+From `implementations/typescript` (after `npm install`):
+
+```sh
+npm run vet -- ../../spec/conformance/max-function-parameters/typescript
+```
+
+The default enabled structural rule for the Go, Rust, and TypeScript runners is
+`VET001`, which rejects functions with more than one parameter. Formatting
+(`VET008`) is enabled by default and delegates to industry tools: `go/format`
+(gofmt), `rustfmt`, `swift-format`, Prettier (TypeScript), and `clang-format`.
+The Swift and C/C++ runners are **subset** runners: headers, file length,
+standard format checks, and GitHub Actions pinning only. Function-shape and
+casing rules are not supported on those runners (explicit CLI flags error with
+“not supported”).
+
+See [docs/rule-review.md](docs/rule-review.md) for the keep/replace/remove
+decisions for every rule.
 
 Header rules are available behind CLI flags:
 
@@ -95,9 +108,8 @@ rules:
     max: 20
   function-docstring:
     policy: optional
-  indent:
-    type: language-default
-    width: 0
+  format:
+    enabled: true
   casing:
     enabled: false
     functions: language-default
@@ -115,27 +127,24 @@ languages:
     exclude:
       - "**/*_test.go"
     rules:
-      indent:
-        type: language-default
-        width: 0
+      format:
+        enabled: true
   swift:
     files:
       - implementations/swift/Sources/...
     exclude:
       - "**/*Tests.swift"
     rules:
-      indent:
-        type: spaces
-        width: 4
+      format:
+        enabled: true
   rust:
     files:
       - implementations/rust/src/...
     exclude:
       - "target/**"
     rules:
-      indent:
-        type: spaces
-        width: 4
+      format:
+        enabled: true
   cpp:
     files:
       - src/...
@@ -143,9 +152,8 @@ languages:
     exclude:
       - "build/**"
     rules:
-      indent:
-        type: spaces
-        width: 4
+      format:
+        enabled: true
 ```
 
 When `-c` or `--config` is omitted, vet loads `vet.yaml` from the current
@@ -181,8 +189,7 @@ Additional strictness flags:
 --max-source-file-lines 300
 --max-function-body-lines 20
 --function-docstring-policy optional
---indent-type language-default
---indent-width 0
+--check-format
 --casing
 --function-casing language-default
 --variable-casing language-default
@@ -192,10 +199,11 @@ Additional strictness flags:
 ```
 
 The docstring policy accepts `forbidden`, `optional`, or `mandatory`.
-Indent type accepts `tabs`, `spaces`, or `language-default`.
+`--check-format` / `format.enabled` requires sources to match the language
+standard formatter (gofmt / rustfmt / swift-format / Prettier / clang-format).
 Casing styles accept `off`, `language-default`, `camelCase`,
 `UpperCamelCase`, `snake_case`, or `SNAKE_CASE_FULL_CAPS`. The casing rule is
-disabled by default.
+disabled by default and is implemented for Go, Rust, and TypeScript.
 
 `--github-actions-pinned` enables `VET014`, which scans GitHub workflow files
 under `.github/workflows/*.yml` and `.github/workflows/*.yaml` by default.
@@ -218,11 +226,13 @@ That means:
 - Rule semantics do not drift between implementations.
 
 The shared rule spec records both compatibility and implementation status for
-Go, Rust, Swift, and C/C++ (`cpp`). Go, Rust, and Swift implement all current
-rules. C/C++ implements only the rules that can be enforced safely without a
-full C/C++ parser; function-shape and casing rules are `unimplemented` for
-`cpp`, not scheduled as future work.
+Go, Rust, Swift, TypeScript, and C/C++ (`cpp`). Go, Rust, and TypeScript
+implement the full structural rule set. Swift and C/C++ implement the safe
+subset (headers, file length, standard format orchestration, GitHub Actions
+pinning); function-shape and casing rules are `unimplemented` for those
+runners, not scheduled as future work.
 
 See [docs/architecture.md](docs/architecture.md) for the rationale and
 implementation boundaries, including why the C/C++ runner is not written in
-C/C++.
+C/C++, and [docs/rule-review.md](docs/rule-review.md) for per-rule keep /
+replace / remove decisions.

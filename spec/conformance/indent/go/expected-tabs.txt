@@ -1,1 +1,0 @@
-spec/conformance/indent/go/type.go:4:1: VET008: line indentation uses spaces; expected tabs

@@ -2,71 +2,12 @@ import XCTest
 @testable import VetCore
 
 final class SwiftAnalyzerTests: XCTestCase {
-    func testReportsFunctionsWithTooManyParameters() {
-        let source = """
-        func accepted(_ value: Int) {}
-
-        func rejected(_ left: Int, _ right: Int) {}
-        """
-
-        let diagnostics = SwiftAnalyzer(config: .default()).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: source
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.maxFunctionParameters)
-        XCTAssertEqual(diagnostics[0].line, 3)
-        XCTAssertEqual(diagnostics[0].column, 6)
-    }
-
-    func testHonorsDisabledMaxFunctionParameters() {
+    func testReportsMissingRequiredHeader() throws {
         var config = VetConfig.default()
-        config.maxFunctionParameters.enabled = false
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: "func accepted(_ left: Int, _ right: Int) {}\n"
-        ))
-
-        XCTAssertEqual(diagnostics.count, 0)
-    }
-
-    func testIgnoresCommasInsideNestedParameterTypes() {
-        let source = """
-        func accepted(_ handler: (Int, Int) -> Void) {}
-        func acceptedGeneric(_ value: Result<Int, Error>) {}
-        func acceptedNestedGeneric(_ value: Dictionary<String, [String: Int]>) {}
-        func acceptedGenericDefault(_ value: Dictionary<String, Int> = Dictionary<String, Int>()) {}
-        """
-
-        let diagnostics = SwiftAnalyzer(config: .default()).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: source
-        ))
-
-        XCTAssertEqual(diagnostics.count, 0)
-    }
-
-    func testCountsParametersAfterDefaultValueComparison() {
-        let source = """
-        func rejected(_ first: Bool = 1 < 2, _ second: Int) {}
-        """
-
-        let diagnostics = SwiftAnalyzer(config: .default()).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: source
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.maxFunctionParameters)
-    }
-
-    func testReportsMissingRequiredHeader() {
-        var config = VetConfig.default()
+        config.format.enabled = false
         config.sourceFileHeader.required = true
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
             source: "func accepted(_ value: Int) {}\n"
         ))
@@ -75,11 +16,12 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFileHeaderRequired)
     }
 
-    func testReportsHeaderBelowMinimumLength() {
+    func testReportsHeaderBelowMinimumLength() throws {
         var config = VetConfig.default()
+        config.format.enabled = false
         config.sourceFileHeader.minLength = 5
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
             source: """
             // Tiny
@@ -91,11 +33,12 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFileHeaderMin)
     }
 
-    func testReportsHeaderAboveMaximumLength() {
+    func testReportsHeaderAboveMaximumLength() throws {
         var config = VetConfig.default()
+        config.format.enabled = false
         config.sourceFileHeader.maxLength = 5
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
             source: """
             // Too long
@@ -107,12 +50,13 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFileHeaderMax)
     }
 
-    func testSkipsSwiftToolsVersionWhenFindingHeader() {
+    func testSkipsSwiftToolsVersionWhenFindingHeader() throws {
         var config = VetConfig.default()
+        config.format.enabled = false
         config.sourceFileHeader.required = true
         config.sourceFileHeader.minLength = 10
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "Package.swift",
             source: """
             // swift-tools-version: 6.0
@@ -125,11 +69,12 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics.count, 0)
     }
 
-    func testDoesNotUseGeneratedMarkerAsHeader() {
+    func testDoesNotUseGeneratedMarkerAsHeader() throws {
         var config = VetConfig.default()
+        config.format.enabled = false
         config.sourceFileHeader.required = true
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
             source: """
             // Code generated by test; DO NOT EDIT.
@@ -141,11 +86,12 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFileHeaderRequired)
     }
 
-    func testReportsSourceFileAboveMaximumLines() {
+    func testReportsSourceFileAboveMaximumLines() throws {
         var config = VetConfig.default()
+        config.format.enabled = false
         config.sourceFileLines.max = 2
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
             source: """
             let one = 1
@@ -158,167 +104,21 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFileLines)
     }
 
-    func testReportsFunctionBodyAboveMaximumLines() {
+    func testDoesNotEnforceUnimplementedStructuralRules() throws {
         var config = VetConfig.default()
+        config.format.enabled = false
+        config.maxFunctionParameters.enabled = true
+        config.maxFunctionParameters.max = 1
         config.functionBodyLines.max = 1
+        config.functionDocstring.policy = .mandatory
+        config.casing.enabled = true
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
             source: """
-            func rejected() {
+            func rejected(_ left: Int, _ right: Int) {
                 print("one")
                 print("two")
-            }
-            """
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionBodyLines)
-    }
-
-    func testReportsMissingMandatoryFunctionDocstring() {
-        var config = VetConfig.default()
-        config.functionDocstring.policy = .mandatory
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: """
-            func missing() {}
-
-            /// documented has a docstring.
-            func documented() {}
-            """
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionDocstring)
-    }
-
-    func testReportsForbiddenFunctionDocstring() {
-        var config = VetConfig.default()
-        config.functionDocstring.policy = .forbidden
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: """
-            /// documented has a docstring.
-            func documented() {}
-            """
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionDocstring)
-    }
-
-    func testAcceptsMandatoryDocstringBeforeModifiersAndAttributes() {
-        var config = VetConfig.default()
-        config.functionDocstring.policy = .mandatory
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: """
-            /// documented with access modifier.
-            public func withAccessModifier() {}
-
-            /// documented with attribute.
-            @MainActor
-            func withAttribute() {}
-
-            /// documented with attribute arguments.
-            @available(iOS 15, *)
-            @MainActor
-            public static func withStackedPrefix() {}
-
-            /**
-             documented with block comment.
-             */
-            open func withBlockDoc() {}
-            """
-        ))
-
-        XCTAssertEqual(diagnostics, [], "expected documented functions to satisfy mandatory policy: \(diagnostics)")
-    }
-
-    func testReportsForbiddenDocstringBeforeModifiersAndAttributes() {
-        var config = VetConfig.default()
-        config.functionDocstring.policy = .forbidden
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: """
-            /// should be forbidden even with modifiers.
-            @MainActor
-            public func documented() {}
-            """
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionDocstring)
-        XCTAssertEqual(diagnostics[0].message, "documented must not have a docstring")
-    }
-
-    func testReportsTabsWhenSpacesIndentRequired() {
-        var config = VetConfig.default()
-        config.indent.type = .spaces
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: "func rejected() {\n\tprint(\"one\")\n}\n"
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentType)
-    }
-
-    func testReportsSpacesWhenTabsIndentRequired() {
-        var config = VetConfig.default()
-        config.indent.type = .tabs
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: "func rejected() {\n  print(\"one\")\n}\n"
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentType)
-    }
-
-    func testReportsIndentWidthViolation() {
-        var config = VetConfig.default()
-        config.indent.type = .spaces
-        config.indent.width = 4
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: "func rejected() {\n  print(\"one\")\n}\n"
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentWidth)
-    }
-
-    func testAcceptsContinuationAlignment() {
-        var config = VetConfig.default()
-        config.indent.type = .spaces
-        config.indent.width = 4
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: """
-            func hasValues(_ values: [String]) -> Bool {
-                guard !values.isEmpty,
-                      values.allSatisfy({ !$0.isEmpty })
-                else {
-                    return false
-                }
-                return true
-            }
-
-            func formattedValue() -> String {
-                String(
-                       describing: 1
-                )
-                  .uppercased()
             }
             """
         ))
@@ -326,136 +126,68 @@ final class SwiftAnalyzerTests: XCTestCase {
         XCTAssertEqual(diagnostics, [])
     }
 
-    func testReportsTabsInContinuationAlignment() {
+    func testReportsUnformattedSourceViaSwiftFormat() throws {
         var config = VetConfig.default()
-        config.indent.type = .spaces
-        config.indent.width = 4
+        config.format.enabled = true
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        // Extra space before `{` is rejected by swift-format Spacing rule.
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
-            source: "func formattedValue() -> String {\n    String(\n\t       describing: 1\n    )\n}\n"
+            source: "func rejected()  {\n  print(\"one\")\n}\n"
         ))
 
         XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentType)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFormat)
+        XCTAssertEqual(diagnostics[0].message, "file is not swift-format-formatted")
+        XCTAssertEqual(diagnostics[0].line, 1)
+        XCTAssertEqual(diagnostics[0].column, 1)
     }
 
-    func testReportsBlockIndentationInsideWrappedExpression() {
+    func testHonorsDisabledFormatCheck() throws {
         var config = VetConfig.default()
-        config.indent.type = .spaces
-        config.indent.width = 4
+        config.format.enabled = false
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
-            source: "func run() {\n    execute(closure: {\n      print(\"invalid block indentation\")\n    })\n}\n"
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentWidth)
-    }
-
-    func testDelimiterInStringDoesNotStartContinuation() {
-        var config = VetConfig.default()
-        config.indent.type = .spaces
-        config.indent.width = 4
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: "func run() {\n    print(\"(\")\n  print(\"invalid block indentation\")\n}\n"
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.indentWidth)
-    }
-
-    func testReportsCasingDiagnostics() {
-        var config = VetConfig.default()
-        config.casing.enabled = true
-        config.casing.functions = .camelCase
-        config.casing.variables = .camelCase
-        config.casing.types = .upperCamelCase
-        config.casing.constants = .snakeUpperCase
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: """
-            let max_connections = 1
-            var global_value = 1
-            struct user_record {}
-            func Rejected() {}
-            """
-        ))
-
-        let ruleIDs = Set(diagnostics.map(\.ruleID))
-        XCTAssertTrue(ruleIDs.contains(RuleID.constantCasing))
-        XCTAssertTrue(ruleIDs.contains(RuleID.variableCasing))
-        XCTAssertTrue(ruleIDs.contains(RuleID.typeCasing))
-        XCTAssertTrue(ruleIDs.contains(RuleID.functionCasing))
-    }
-
-    func testAcceptsSwiftLanguageDefaultCasing() {
-        var config = VetConfig.default()
-        config.casing.enabled = true
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: """
-            let maxConnections = 1
-            var requestID = 1
-            struct UserRecord {}
-            func serveHTTP() {}
-            """
+            source: "func rejected()  {\n  print(\"one\")\n}\n"
         ))
 
         XCTAssertEqual(diagnostics.count, 0)
     }
 
-    func testHonorsCasingIgnores() {
+    /// Regression: draining stdout/stderr only after waitUntilExit deadlocks when
+    /// swift-format emits enough diagnostics to fill the OS pipe buffer (~64KB).
+    func testLargeUnformattedSourceDoesNotDeadlockFormatCheck() throws {
         var config = VetConfig.default()
-        config.casing.enabled = true
-        config.casing.functions = .camelCase
-        config.casing.ignoreNames = ["ExactIgnored"]
-        config.casing.ignorePatterns = ["^Test[A-Z]"]
+        config.format.enabled = true
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: """
-            func ExactIgnored() {}
-            func TestPatternIgnored() {}
-            func Rejected() {}
-            """
+        // Many Spacing-rule violations so swift-format produces large lint output.
+        var lines: [String] = ["func large()  {"]
+        for index in 0..<400 {
+            lines.append("  print(  \(index)  )")
+        }
+        lines.append("}")
+        let source = lines.joined(separator: "\n") + "\n"
+
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+            path: "large.swift",
+            source: source
         ))
 
         XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.functionCasing)
-        XCTAssertEqual(diagnostics[0].line, 3)
+        XCTAssertEqual(diagnostics[0].ruleID, RuleID.sourceFormat)
     }
 
-    func testHonorsOffCasingStyle() {
+    func testAcceptsSwiftFormatFormattedSource() throws {
         var config = VetConfig.default()
-        config.casing.enabled = true
-        config.casing.functions = .off
+        config.format.enabled = true
 
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
+        let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
             path: "sample.swift",
-            source: "func rejected_name() {}\n"
+            source: "func accepted() {\n  print(\"one\")\n}\n"
         ))
 
-        XCTAssertEqual(diagnostics.count, 0)
-    }
-
-    func testReportsCasingForCommaSeparatedSwiftBindings() {
-        var config = VetConfig.default()
-        config.casing.enabled = true
-        config.casing.variables = .camelCase
-
-        let diagnostics = SwiftAnalyzer(config: config).analyzeFile(AnalyzeFileRequest(
-            path: "sample.swift",
-            source: "var accepted = 1, rejected_name = 2\n"
-        ))
-
-        XCTAssertEqual(diagnostics.count, 1)
-        XCTAssertEqual(diagnostics[0].ruleID, RuleID.variableCasing)
+        XCTAssertEqual(diagnostics, [])
     }
 
     func testReportsUnpinnedGitHubActions() throws {

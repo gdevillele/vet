@@ -441,7 +441,7 @@ fn run_reports_all_diagnostics_as_json() {
 }
 
 #[test]
-fn run_reports_indent_diagnostics() {
+fn run_reports_format_diagnostics() {
     let dir = TempDir::new().unwrap();
     fs::write(
         dir.path().join("sample.rs"),
@@ -450,15 +450,13 @@ fn run_reports_indent_diagnostics() {
     .unwrap();
 
     let (code, stdout, stderr) = run_cli([
-        "--indent-type".to_string(),
-        "spaces".to_string(),
-        "--indent-width".to_string(),
-        "4".to_string(),
+        "--check-format".to_string(),
         path_string(dir.path()),
     ]);
 
     assert_eq!(code, 1, "stdout={stdout:?} stderr={stderr:?}");
-    assert!(stdout.contains("VET009"), "{stdout:?}");
+    assert!(stdout.contains("VET008"), "{stdout:?}");
+    assert!(stdout.contains("rustfmt"), "{stdout:?}");
     assert_eq!(stderr, "");
 }
 

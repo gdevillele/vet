@@ -1,1 +1,0 @@
-spec/conformance/indent/swift/type.swift:2:1: VET008: line indentation uses tabs; expected spaces
