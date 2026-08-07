@@ -1,8 +1,10 @@
 package goanalysis
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/format"
 	"go/parser"
 	"go/token"
 	"strings"
@@ -19,8 +21,7 @@ const (
 	RuleSourceFileLines          = "VET005"
 	RuleFunctionBodyLines        = "VET006"
 	RuleFunctionDocstring        = "VET007"
-	RuleIndentType               = "VET008"
-	RuleIndentWidth              = "VET009"
+	RuleSourceFormat             = "VET008"
 	RuleFunctionCasing           = "VET010"
 	RuleVariableCasing           = "VET011"
 	RuleTypeCasing               = "VET012"
@@ -57,11 +58,9 @@ type sourceLineCheck struct {
 	Source []byte
 }
 
-type indentationCheck struct {
-	FileSet *token.FileSet
-	File    *ast.File
-	Path    string
-	Source  []byte
+type formatCheck struct {
+	Path   string
+	Source []byte
 }
 
 type casingCheck struct {
@@ -92,11 +91,9 @@ func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) ([]diagnostic.Diagnost
 		Path:   request.Path,
 		Source: request.Source,
 	})...)
-	diagnostics = append(diagnostics, a.checkIndentation(indentationCheck{
-		FileSet: fileSet,
-		File:    file,
-		Path:    request.Path,
-		Source:  request.Source,
+	diagnostics = append(diagnostics, a.checkFormat(formatCheck{
+		Path:   request.Path,
+		Source: request.Source,
 	})...)
 	diagnostics = append(diagnostics, a.checkFileHeader(fileHeaderCheck{
 		FileSet: fileSet,
@@ -138,69 +135,28 @@ func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) ([]diagnostic.Diagnost
 	return diagnostics, nil
 }
 
-func (a Analyzer) checkIndentation(request indentationCheck) []diagnostic.Diagnostic {
-	rule := a.config.Indent
-	effectiveType := rule.Type
-	if effectiveType == config.IndentLanguageDefault {
-		effectiveType = config.IndentTabs
+func (a Analyzer) checkFormat(request formatCheck) []diagnostic.Diagnostic {
+	if !a.config.Format.Enabled {
+		return nil
 	}
 
-	ignoredLines := rawStringLiteralLines(rawStringLiteralLinesRequest{
-		FileSet: request.FileSet,
-		File:    request.File,
-	})
-	lines := strings.Split(string(request.Source), "\n")
-	diagnostics := make([]diagnostic.Diagnostic, 0)
-
-	for index, line := range lines {
-		lineNumber := index + 1
-		if ignoredLines[lineNumber] || strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		leading := leadingIndent(line)
-		if leading == "" {
-			continue
-		}
-
-		switch effectiveType {
-		case config.IndentSpaces:
-			if column := strings.IndexRune(leading, '\t'); column >= 0 {
-				diagnostics = append(diagnostics, diagnostic.Diagnostic{
-					RuleID:   RuleIndentType,
-					Severity: diagnostic.SeverityError,
-					Message:  "line indentation uses tabs; expected spaces",
-					File:     request.Path,
-					Line:     lineNumber,
-					Column:   column + 1,
-				})
-				continue
-			}
-			if rule.Width > 0 && len(leading)%rule.Width != 0 {
-				diagnostics = append(diagnostics, diagnostic.Diagnostic{
-					RuleID:   RuleIndentWidth,
-					Severity: diagnostic.SeverityError,
-					Message:  fmt.Sprintf("line indentation has %d spaces; expected a multiple of %d", len(leading), rule.Width),
-					File:     request.Path,
-					Line:     lineNumber,
-					Column:   1,
-				})
-			}
-		case config.IndentTabs:
-			if column := strings.IndexRune(leading, ' '); column >= 0 {
-				diagnostics = append(diagnostics, diagnostic.Diagnostic{
-					RuleID:   RuleIndentType,
-					Severity: diagnostic.SeverityError,
-					Message:  "line indentation uses spaces; expected tabs",
-					File:     request.Path,
-					Line:     lineNumber,
-					Column:   column + 1,
-				})
-			}
-		}
+	formatted, err := format.Source(request.Source)
+	if err != nil {
+		// Parse errors are reported by AnalyzeFile's primary parse step.
+		return nil
+	}
+	if bytes.Equal(formatted, request.Source) {
+		return nil
 	}
 
-	return diagnostics
+	return []diagnostic.Diagnostic{{
+		RuleID:   RuleSourceFormat,
+		Severity: diagnostic.SeverityError,
+		Message:  "file is not gofmt-formatted",
+		File:     request.Path,
+		Line:     1,
+		Column:   1,
+	}}
 }
 
 func (a Analyzer) checkSourceFileLines(request sourceLineCheck) []diagnostic.Diagnostic {
@@ -412,40 +368,6 @@ func hasDocstring(group *ast.CommentGroup) bool {
 	}
 
 	return strings.TrimSpace(group.Text()) != ""
-}
-
-type rawStringLiteralLinesRequest struct {
-	FileSet *token.FileSet
-	File    *ast.File
-}
-
-func rawStringLiteralLines(request rawStringLiteralLinesRequest) map[int]bool {
-	lines := make(map[int]bool)
-	ast.Inspect(request.File, func(node ast.Node) bool {
-		literal, ok := node.(*ast.BasicLit)
-		if !ok || literal.Kind != token.STRING || !strings.HasPrefix(literal.Value, "`") {
-			return true
-		}
-
-		start := request.FileSet.Position(literal.Pos()).Line
-		end := request.FileSet.Position(literal.End()).Line
-		for line := start + 1; line <= end; line++ {
-			lines[line] = true
-		}
-		return true
-	})
-	return lines
-}
-
-func leadingIndent(line string) string {
-	index := 0
-	for index < len(line) {
-		if line[index] != ' ' && line[index] != '\t' {
-			break
-		}
-		index++
-	}
-	return line[:index]
 }
 
 func findSourceFileHeader(file *ast.File) sourceFileHeader {

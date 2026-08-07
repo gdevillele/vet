@@ -1,10 +1,14 @@
 use crate::{
-    config::{CasingRule, CasingStyle, Config, FunctionDocstringPolicy, IndentType},
+    config::{CasingRule, CasingStyle, Config, FunctionDocstringPolicy},
     diagnostic::{diagnostic_at_offset, Diagnostic},
 };
 use regex::Regex;
 use saphyr::{LoadableYamlNode, MarkedYaml, YamlData};
-use std::collections::HashSet;
+use std::{
+    fmt,
+    io::{self, Write},
+    process::{Command, Stdio},
+};
 use syn::{
     visit::{self, Visit},
     Attribute, Block, ExprForLoop, FnArg, ForeignItemFn, Ident, ImplItemConst, ImplItemFn,
@@ -19,13 +23,35 @@ pub const RULE_SOURCE_FILE_HEADER_MAX: &str = "VET004";
 pub const RULE_SOURCE_FILE_LINES: &str = "VET005";
 pub const RULE_FUNCTION_BODY_LINES: &str = "VET006";
 pub const RULE_FUNCTION_DOCSTRING: &str = "VET007";
-pub const RULE_INDENT_TYPE: &str = "VET008";
-pub const RULE_INDENT_WIDTH: &str = "VET009";
+pub const RULE_SOURCE_FORMAT: &str = "VET008";
 pub const RULE_FUNCTION_CASING: &str = "VET010";
 pub const RULE_VARIABLE_CASING: &str = "VET011";
 pub const RULE_TYPE_CASING: &str = "VET012";
 pub const RULE_CONSTANT_CASING: &str = "VET013";
 pub const RULE_GITHUB_ACTIONS_PINNED: &str = "VET014";
+
+#[derive(Debug)]
+pub enum AnalyzeError {
+    Parse(syn::Error),
+    Message(String),
+}
+
+impl fmt::Display for AnalyzeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AnalyzeError::Parse(err) => err.fmt(f),
+            AnalyzeError::Message(message) => f.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for AnalyzeError {}
+
+impl From<syn::Error> for AnalyzeError {
+    fn from(value: syn::Error) -> Self {
+        AnalyzeError::Parse(value)
+    }
+}
 
 pub struct Analyzer {
     config: Config,
@@ -61,12 +87,15 @@ impl Analyzer {
         Self { config }
     }
 
-    pub fn analyze_file(&self, request: AnalyzeFileRequest) -> Result<Vec<Diagnostic>, syn::Error> {
+    pub fn analyze_file(
+        &self,
+        request: AnalyzeFileRequest,
+    ) -> Result<Vec<Diagnostic>, AnalyzeError> {
         let file = syn::parse_file(&request.source)?;
         let mut diagnostics = Vec::new();
 
         diagnostics.extend(self.check_source_file_lines(&request.path, &request.source));
-        diagnostics.extend(self.check_indentation(&request.path, &request.source));
+        diagnostics.extend(self.check_format(&request.path, &request.source)?);
         diagnostics.extend(self.check_file_header(&request.path, &request.source));
 
         let mut visitor = RustVisitor {
@@ -117,72 +146,22 @@ impl Analyzer {
         )]
     }
 
-    fn check_indentation(&self, path: &str, source: &str) -> Vec<Diagnostic> {
-        let rule = &self.config.indent;
-        let effective_type = match rule.r#type {
-            IndentType::LanguageDefault => IndentType::Spaces,
-            other => other,
-        };
-        let ignored_lines = string_literal_lines(source);
-        let mut diagnostics = Vec::new();
-        let mut offset = 0;
-
-        for (index, line) in source.split('\n').enumerate() {
-            let line_number = index + 1;
-            let line_offset = offset;
-            offset += line.len() + 1;
-
-            if ignored_lines.contains(&line_number) || line.trim().is_empty() {
-                continue;
-            }
-
-            let leading = leading_indent(line);
-            if leading.is_empty() {
-                continue;
-            }
-
-            match effective_type {
-                IndentType::Spaces => {
-                    if let Some(column) = leading.find('\t') {
-                        diagnostics.push(diagnostic_at_offset(
-                            RULE_INDENT_TYPE,
-                            "line indentation uses tabs; expected spaces",
-                            path,
-                            source,
-                            line_offset + column,
-                        ));
-                        continue;
-                    }
-                    if rule.width > 0 && !leading.len().is_multiple_of(rule.width as usize) {
-                        diagnostics.push(diagnostic_at_offset(
-                            RULE_INDENT_WIDTH,
-                            format!(
-                                "line indentation has {} spaces; expected a multiple of {}",
-                                leading.len(),
-                                rule.width
-                            ),
-                            path,
-                            source,
-                            line_offset,
-                        ));
-                    }
-                }
-                IndentType::Tabs => {
-                    if let Some(column) = leading.find(' ') {
-                        diagnostics.push(diagnostic_at_offset(
-                            RULE_INDENT_TYPE,
-                            "line indentation uses spaces; expected tabs",
-                            path,
-                            source,
-                            line_offset + column,
-                        ));
-                    }
-                }
-                IndentType::LanguageDefault => {}
-            }
+    fn check_format(&self, path: &str, source: &str) -> Result<Vec<Diagnostic>, AnalyzeError> {
+        if !self.config.format.enabled {
+            return Ok(Vec::new());
         }
 
-        diagnostics
+        if source_matches_rustfmt(source)? {
+            return Ok(Vec::new());
+        }
+
+        Ok(vec![Diagnostic::new(
+            RULE_SOURCE_FORMAT,
+            "file is not rustfmt-formatted",
+            path,
+            1,
+            1,
+        )])
     }
 
     fn check_file_header(&self, path: &str, source: &str) -> Vec<Diagnostic> {
@@ -743,124 +722,58 @@ fn should_ignore_header_line(line: &str) -> bool {
         || line.starts_with("rustfmt::skip")
 }
 
-fn leading_indent(line: &str) -> &str {
-    let end = line
-        .bytes()
-        .take_while(|byte| matches!(byte, b' ' | b'\t'))
-        .count();
-    &line[..end]
-}
-
-fn string_literal_lines(source: &str) -> HashSet<usize> {
-    let mut lines = HashSet::new();
-    let bytes = source.as_bytes();
-    let mut cursor = 0;
-    let mut line = 1;
-
-    while cursor < bytes.len() {
-        if bytes[cursor] == b'\n' {
-            line += 1;
-            cursor += 1;
-            continue;
+/// Run rustfmt on `source` and report whether output matches input exactly.
+/// Returns an error when rustfmt is missing from PATH or fails unexpectedly.
+fn source_matches_rustfmt(source: &str) -> Result<bool, AnalyzeError> {
+    let mut child = match Command::new("rustfmt")
+        .args(["--edition", "2021"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            return Err(AnalyzeError::Message(
+                "rustfmt not found in PATH; install rustfmt to enforce source-format (VET008)"
+                    .to_string(),
+            ));
         }
-
-        if cursor + 1 < bytes.len() && &bytes[cursor..cursor + 2] == b"//" {
-            cursor = skip_line(source, cursor);
-            line += 1;
-            continue;
+        Err(err) => {
+            return Err(AnalyzeError::Message(format!(
+                "failed to spawn rustfmt: {err}"
+            )));
         }
+    };
 
-        if cursor + 1 < bytes.len() && &bytes[cursor..cursor + 2] == b"/*" {
-            cursor += 2;
-            while cursor + 1 < bytes.len() {
-                if bytes[cursor] == b'\n' {
-                    line += 1;
-                }
-                if bytes[cursor] == b'*' && bytes[cursor + 1] == b'/' {
-                    cursor += 2;
-                    break;
-                }
-                cursor += 1;
-            }
-            continue;
-        }
-
-        if let Some((prefix_len, hashes)) = raw_string_prefix(bytes, cursor) {
-            let start_line = line;
-            cursor += prefix_len;
-            while cursor < bytes.len() {
-                if bytes[cursor] == b'\n' {
-                    line += 1;
-                    if line > start_line {
-                        lines.insert(line);
-                    }
-                    cursor += 1;
-                    continue;
-                }
-                if bytes[cursor] == b'"'
-                    && cursor + 1 + hashes <= bytes.len()
-                    && bytes[cursor + 1..cursor + 1 + hashes]
-                        .iter()
-                        .all(|byte| *byte == b'#')
-                {
-                    cursor += 1 + hashes;
-                    break;
-                }
-                cursor += 1;
-            }
-            continue;
-        }
-
-        if bytes[cursor] == b'"' {
-            let start_line = line;
-            cursor += 1;
-            let mut escaped = false;
-            while cursor < bytes.len() {
-                if bytes[cursor] == b'\n' {
-                    line += 1;
-                    if line > start_line {
-                        lines.insert(line);
-                    }
-                    cursor += 1;
-                    escaped = false;
-                    continue;
-                }
-                if bytes[cursor] == b'"' && !escaped {
-                    cursor += 1;
-                    break;
-                }
-                escaped = bytes[cursor] == b'\\' && !escaped;
-                if bytes[cursor] != b'\\' {
-                    escaped = false;
-                }
-                cursor += 1;
-            }
-            continue;
-        }
-
-        cursor += 1;
+    {
+        let mut stdin = child.stdin.take().ok_or_else(|| {
+            AnalyzeError::Message("failed to open rustfmt stdin".to_string())
+        })?;
+        stdin
+            .write_all(source.as_bytes())
+            .map_err(|err| AnalyzeError::Message(format!("failed to write to rustfmt: {err}")))?;
     }
 
-    lines
-}
+    let output = child
+        .wait_with_output()
+        .map_err(|err| AnalyzeError::Message(format!("failed to wait for rustfmt: {err}")))?;
 
-fn raw_string_prefix(bytes: &[u8], cursor: usize) -> Option<(usize, usize)> {
-    let mut offset = cursor;
-    if bytes.get(offset) == Some(&b'b') {
-        offset += 1;
+    if !output.status.success() {
+        // Source already parsed by syn; rustfmt failure is unexpected but must not be silent.
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = stderr.trim();
+        if stderr.is_empty() {
+            return Err(AnalyzeError::Message(
+                "rustfmt failed while checking source format".to_string(),
+            ));
+        }
+        return Err(AnalyzeError::Message(format!(
+            "rustfmt failed while checking source format: {stderr}"
+        )));
     }
-    if bytes.get(offset) != Some(&b'r') {
-        return None;
-    }
-    offset += 1;
-    let hash_start = offset;
-    while bytes.get(offset) == Some(&b'#') {
-        offset += 1;
-    }
-    if bytes.get(offset) != Some(&b'"') {
-        return None;
-    }
-    Some((offset - cursor + 1, offset - hash_start))
+
+    Ok(output.stdout == source.as_bytes())
 }
 
 fn pattern_identifiers(pattern: &Pat) -> Vec<&Ident> {

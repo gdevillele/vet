@@ -1,0 +1,1 @@
+spec/conformance/source-format/typescript/invalid.ts:1:1: VET008: file is not prettier-formatted

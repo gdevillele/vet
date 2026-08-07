@@ -23,9 +23,8 @@ rules:
     max: 12
   function-docstring:
     policy: mandatory
-  indent:
-    type: spaces
-    width: 4
+  format:
+    enabled: false
   casing:
     enabled: true
     functions: camelCase
@@ -76,11 +75,8 @@ rules:
 	if cfg.FunctionDocstring.Policy != FunctionDocstringMandatory {
 		t.Fatalf("expected mandatory docstring policy, got %q", cfg.FunctionDocstring.Policy)
 	}
-	if cfg.Indent.Type != IndentSpaces {
-		t.Fatalf("expected spaces indent type, got %q", cfg.Indent.Type)
-	}
-	if cfg.Indent.Width != 4 {
-		t.Fatalf("expected indent width 4, got %d", cfg.Indent.Width)
+	if cfg.Format.Enabled {
+		t.Fatalf("expected format to be disabled")
 	}
 	if !cfg.Casing.Enabled {
 		t.Fatalf("expected casing to be enabled")
@@ -94,9 +90,8 @@ func TestLoadFileAppliesLanguageSection(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "vet.yaml")
 	data := []byte(`version: 1
 rules:
-  indent:
-    type: tabs
-    width: 0
+  format:
+    enabled: true
 languages:
   cpp:
     files:
@@ -104,9 +99,8 @@ languages:
     exclude:
       - "**/generated/**"
     rules:
-      indent:
-        type: spaces
-        width: 2
+      format:
+        enabled: false
 `)
 
 	if err := os.WriteFile(path, data, 0o600); err != nil {
@@ -128,11 +122,15 @@ languages:
 	if len(cfg.FileSelection.Exclude) != 1 || cfg.FileSelection.Exclude[0] != "**/generated/**" {
 		t.Fatalf("unexpected exclude: %#v", cfg.FileSelection.Exclude)
 	}
-	if cfg.Indent.Type != IndentSpaces {
-		t.Fatalf("expected language override spaces, got %q", cfg.Indent.Type)
+	if cfg.Format.Enabled {
+		t.Fatalf("expected language override to disable format")
 	}
-	if cfg.Indent.Width != 2 {
-		t.Fatalf("expected language override width 2, got %d", cfg.Indent.Width)
+}
+
+func TestDefaultEnablesFormat(t *testing.T) {
+	cfg := Default()
+	if !cfg.Format.Enabled {
+		t.Fatalf("expected format enabled by default")
 	}
 }
 
@@ -159,11 +157,11 @@ func TestActiveUnsupportedRulesReportsNonDefaultSettings(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsInvalidIndentType(t *testing.T) {
+func TestValidateAcceptsFormatConfig(t *testing.T) {
 	cfg := Default()
-	cfg.Indent.Type = "mixed"
-	if err := Validate(cfg); err == nil {
-		t.Fatalf("expected validation error")
+	cfg.Format.Enabled = false
+	if err := Validate(cfg); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
 	}
 }
 

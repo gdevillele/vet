@@ -1,3 +1,0 @@
-func rejected() {
-	print("tab")
-}

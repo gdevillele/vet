@@ -8,8 +8,7 @@ public enum RuleID {
     public static let sourceFileLines = "VET005"
     public static let functionBodyLines = "VET006"
     public static let functionDocstring = "VET007"
-    public static let indentType = "VET008"
-    public static let indentWidth = "VET009"
+    public static let sourceFormat = "VET008"
     public static let functionCasing = "VET010"
     public static let variableCasing = "VET011"
     public static let typeCasing = "VET012"
@@ -44,37 +43,23 @@ public struct SwiftAnalyzer {
         self.config = config
     }
 
-    public func analyzeFile(_ request: AnalyzeFileRequest) -> [Diagnostic] {
+    public func analyzeFile(_ request: AnalyzeFileRequest) throws -> [Diagnostic] {
         var diagnostics: [Diagnostic] = []
         diagnostics.append(contentsOf: SourceFileLineAnalyzer.analyze(SourceFileLineAnalyzeRequest(
             path: request.path,
             source: request.source,
             rule: config.sourceFileLines
         )))
-        diagnostics.append(contentsOf: IndentationAnalyzer.analyze(IndentAnalyzeRequest(
+        diagnostics.append(contentsOf: try FormatAnalyzer.analyze(FormatAnalyzeRequest(
             path: request.path,
             source: request.source,
-            rule: config.indent
+            rule: config.format
         )))
         diagnostics.append(contentsOf: SourceFileHeaderAnalyzer.analyze(HeaderAnalyzeRequest(
             path: request.path,
             source: request.source,
             rule: config.sourceFileHeader
         )))
-        diagnostics.append(contentsOf: CasingAnalyzer.analyze(CasingAnalyzeRequest(
-            path: request.path,
-            source: request.source,
-            rule: config.casing
-        )))
-
-        diagnostics.append(contentsOf: FunctionParameterAnalyzer.analyze(FunctionAnalyzeRequest(
-            path: request.path,
-            source: request.source,
-            maxParameters: config.maxFunctionParameters.enabled ? config.maxFunctionParameters.max : nil,
-            maxBodyLines: config.functionBodyLines.max,
-            docstringPolicy: config.functionDocstring.policy
-        )))
-
         return diagnostics
     }
 }

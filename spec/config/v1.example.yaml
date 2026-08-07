@@ -13,9 +13,8 @@ rules:
     max: 20
   function-docstring:
     policy: optional
-  indent:
-    type: language-default
-    width: 0
+  format:
+    enabled: true
   casing:
     enabled: false
     functions: language-default
@@ -33,27 +32,24 @@ languages:
     exclude:
       - "**/*_test.go"
     rules:
-      indent:
-        type: language-default
-        width: 0
+      format:
+        enabled: true
   swift:
     files:
       - implementations/swift/Sources/...
     exclude:
       - "**/*Tests.swift"
     rules:
-      indent:
-        type: spaces
-        width: 4
+      format:
+        enabled: true
   rust:
     files:
       - implementations/rust/src/...
     exclude:
       - "target/**"
     rules:
-      indent:
-        type: spaces
-        width: 4
+      format:
+        enabled: true
   cpp:
     files:
       - src/...
@@ -62,6 +58,16 @@ languages:
       - "build/**"
       - "**/generated/**"
     rules:
-      indent:
-        type: spaces
-        width: 4
+      format:
+        enabled: true
+  typescript:
+    files:
+      - src/...
+    exclude:
+      - "**/*.test.ts"
+      - "dist/**"
+      - "node_modules/**"
+    rules:
+      format:
+        enabled: true
+

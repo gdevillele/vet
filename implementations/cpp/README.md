@@ -41,8 +41,7 @@ go test ./...
 | VET003 | source-file-header-min-length| implemented |
 | VET004 | source-file-header-max-length| implemented |
 | VET005 | max-source-file-lines        | implemented |
-| VET008 | indent-type                  | implemented |
-| VET009 | indent-width                 | implemented |
+| VET008 | source-format                | implemented |
 | VET014 | github-actions-pinned        | implemented |
 
 Function-shape and casing rules (`VET001`, `VET006`, `VET007`, `VET010`–`VET013`)
@@ -54,9 +53,28 @@ produce a stderr warning and are ignored. Enforcing them safely would need a
 real C/C++ syntax model (macros, templates); that is intentionally out of scope
 here.
 
+## Source format (VET008)
+
+When enabled (default), the runner invokes:
+
+```sh
+clang-format --dry-run --Werror <file>
+```
+
+If reformatting would change a file, it emits a `VET008` diagnostic
+(`file is not clang-format-formatted`). If `clang-format` is missing from
+`PATH`, the runner exits with code 2 and a clear error — it never silently
+skips the check. Disable with `-check-format=false` or config:
+
+```yaml
+rules:
+  format:
+    enabled: false
+```
+
 ## Language defaults
 
-- indentation uses spaces (`language-default` resolves to spaces)
+- format checking is enabled (`format.enabled: true`) and uses `clang-format`
 - header detection accepts leading `//` and `/* ... */` comments
 - generated-code markers (`Code generated ... DO NOT EDIT.`) are not treated as
   file headers

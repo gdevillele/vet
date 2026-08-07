@@ -10,6 +10,8 @@ For example:
 - Go projects should be able to run `go run`.
 - Swift projects should be able to run `swift run`.
 - Rust projects should be able to run `cargo run` or install a Cargo binary.
+- TypeScript projects should be able to run `npm run vet` / `npx vet` from the
+  TypeScript runner package.
 - C/C++ projects run a dedicated runner that analyzes C/C++ sources. That runner
   is hosted in Go rather than written in C/C++ (see below).
 
@@ -31,12 +33,16 @@ just to run its quality gate. The same applies to Swift and Rust projects.
 Native runners also allow each implementation to use the best parser and build
 integration for that ecosystem:
 
-- Go: `go/parser`, `go/ast`, and later `go/packages`;
-- Swift: SwiftSyntax and SwiftPM plugins;
-- Rust: rust-analyzer syntax crates, `syn`, or compiler-integrated tooling;
-- C/C++: comment/line analysis only for the subset of rules that do not require
-  a full C/C++ syntax model (headers, file length, indentation, GitHub Actions
-  pinning). Function-shape and casing rules are not supported for C/C++.
+- Go: `go/parser`, `go/ast`, and later `go/packages`; formatting via `go/format`
+  (gofmt semantics);
+- Swift: line/comment analysis for headers and file length; formatting via
+  `swift-format`. Structural rules (parameters, body lines, docstrings, casing)
+  are unimplemented without a dependable SwiftSyntax-based analyzer;
+- Rust: `syn` for structural rules; formatting via `rustfmt`;
+- TypeScript: TypeScript compiler API for structural rules; formatting via
+  Prettier (`prettier.format`);
+- C/C++: comment/line analysis for headers and file length; formatting via
+  `clang-format`. Function-shape and casing rules are not supported for C/C++.
 
 ### Why the C/C++ Runner Is Not Written in C/C++
 
@@ -50,7 +56,7 @@ quality gate. Preprocessor macros, templates, and ambiguous declarations make
 hand-rolled parsing brittle. Hosting the C/C++ runner in Go keeps the tool
 memory-safe, easy to distribute, and aligned with the existing Go runner while
 still analyzing C and C++ sources under a **subset** of the shared rule contract
-(line/comment/indent/CI rules only). Language-aware function-shape and casing
+(line/comment/format/CI rules only). Language-aware function-shape and casing
 rules remain unsupported for C/C++ rather than scheduled as future work.
 
 ## Avoiding Rule Drift
@@ -87,12 +93,17 @@ Implementation statuses:
 - `unimplemented`: the rule is compatible, but no implementation is scheduled.
 - `not-applicable`: the rule is incompatible with the language.
 
-All current rules are compatible with Go, Rust, Swift, and C/C++ (`cpp`). The
-Go, Rust, and Swift runners implement every rule. The C/C++ runner is a
-**subset** runner: it implements header, file-length, indentation, and GitHub
-Actions pinning rules. Function-shape and casing rules (`VET001`, `VET006`,
-`VET007`, `VET010`–`VET013`) remain `implementation: unimplemented` for `cpp`
-(not a roadmap promise).
+All remaining rules are compatible with Go, Rust, Swift, TypeScript, and C/C++
+(`cpp`). Implementation coverage differs:
+
+- **Go, Rust, and TypeScript** implement structural rules (`VET001`, `VET006`,
+  `VET007`, `VET010`–`VET013`) with standard parsers (`go/parser`, `syn`,
+  TypeScript compiler API), plus headers, file length, format, and GitHub
+  Actions pinning.
+- **Swift and C/C++** are **subset** runners: headers, file length, standard
+  formatters (`swift-format` / `clang-format`), and GitHub Actions pinning.
+  Function-shape and casing rules are `implementation: unimplemented` (not a
+  roadmap promise). See [rule-review.md](rule-review.md).
 
 ## Implementation Boundary
 
@@ -141,22 +152,22 @@ excluding the opening and closing brace lines.
 `VET007` enforces function docstring policy. Supported policies are
 `forbidden`, `optional`, and `mandatory`.
 
-`VET008` enforces indentation type. Supported types are `tabs`, `spaces`, and
-`language-default`; the language default is tabs for Go and spaces for Swift,
-Rust, and C/C++.
+`VET008` (`source-format`) requires sources to match the language standard
+formatter when enabled (default on). Enforcement delegates to industry tools:
+`go/format` (gofmt) for Go, `rustfmt` (edition 2021, compare formatted output to
+input) for Rust, `swift-format lint --strict` for Swift, Prettier for
+TypeScript, and `clang-format --dry-run --Werror` for C/C++. Missing external
+formatters fail the run clearly rather than skipping the check.
 
-`VET009` enforces space indentation width when the effective indentation type is
-spaces. A width of `0` disables the width check. Swift continuation lines may
-use alignment spaces beyond the configured block indentation width.
+`VET009` (`indent-width`) was **removed**; indent width/style is owned by the
+standard formatters under `VET008`.
 
 `VET010` through `VET013` enforce casing for functions, variables, types, and
-constants. The grouped `casing` config is disabled by default, and each kind
-defaults to `language-default` to avoid changing existing projects. Go's
-language default follows export visibility: exported identifiers use
-`UpperCamelCase`, while unexported identifiers use `camelCase`. Swift's
-language default uses `camelCase` for functions, variables, and constants, and
-`UpperCamelCase` for types. Rust's language default uses `snake_case` for
-functions and variables, `UpperCamelCase` for types, and
+constants on Go and Rust only. The grouped `casing` config is disabled by
+default, and each kind defaults to `language-default`. Go's language default
+follows export visibility: exported identifiers use `UpperCamelCase`, while
+unexported identifiers use `camelCase`. Rust's language default uses
+`snake_case` for functions and variables, `UpperCamelCase` for types, and
 `SNAKE_CASE_FULL_CAPS` for constants.
 
 `VET014` enforces pinned GitHub Actions step references when explicitly enabled.

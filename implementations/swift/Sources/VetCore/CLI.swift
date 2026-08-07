@@ -30,8 +30,7 @@ struct CLIOptions {
     var maxSourceFileLines: Int?
     var maxFunctionBodyLines: Int?
     var functionDocstringPolicy: FunctionDocstringPolicy?
-    var indentType: IndentType?
-    var indentWidth: Int?
+    var checkFormat: Bool?
     var casingEnabled: Bool?
     var functionCasing: CasingStyle?
     var variableCasing: CasingStyle?
@@ -40,6 +39,10 @@ struct CLIOptions {
     var githubActionsPinned: Bool?
     var version = false
     var paths: [String] = []
+
+    /// CLI flags that were explicitly visited (for unsupported-rule rejection
+    /// and selective config overrides).
+    var visited: Set<String> = []
 }
 
 struct CLIParseRequest {
@@ -66,6 +69,18 @@ struct DiagnosticSortRequest {
     let right: Diagnostic
 }
 
+/// Flags accepted for CLI shape parity but not enforced for Swift.
+private let unsupportedCLIFlags: Set<String> = [
+    "max-function-parameters",
+    "max-function-body-lines",
+    "function-docstring-policy",
+    "casing",
+    "function-casing",
+    "variable-casing",
+    "type-casing",
+    "constant-casing",
+]
+
 public enum CLI {
     private static let defaultConfigPath = "vet.yaml"
 
@@ -81,6 +96,13 @@ public enum CLI {
         if options.version {
             invocation.stdout("0.1.0-dev\n")
             return 0
+        }
+
+        // Unsupported Swift rules are not enforced. Reject explicit CLI visits so a
+        // successful exit cannot be mistaken for a clean pass on those rules.
+        for name in unsupportedCLIFlags.sorted() where options.visited.contains(name) {
+            invocation.stderr("vet: --\(name) is not supported for Swift\n")
+            return 2
         }
 
         var config = VetConfig.default()
@@ -111,6 +133,13 @@ public enum CLI {
             return 2
         }
 
+        let activeUnsupported = ConfigLoader.activeUnsupportedRules(config)
+        if !activeUnsupported.isEmpty {
+            invocation.stderr(
+                "vet: warning: ignoring unsupported Swift rule settings: \(activeUnsupported.joined(separator: ", "))\n"
+            )
+        }
+
         let explicitPaths = options.paths
         let selection: FileCollectionRequest
         if explicitPaths.isEmpty {
@@ -135,7 +164,10 @@ public enum CLI {
         for file in files {
             do {
                 let source = try String(contentsOfFile: file, encoding: .utf8)
-                diagnostics.append(contentsOf: analyzer.analyzeFile(AnalyzeFileRequest(path: file, source: source)))
+                diagnostics.append(contentsOf: try analyzer.analyzeFile(AnalyzeFileRequest(path: file, source: source)))
+            } catch let error as FormatError {
+                invocation.stderr("vet: \(error)\n")
+                return 2
             } catch {
                 invocation.stderr("vet: \(file): \(error)\n")
                 return 2
@@ -212,73 +244,85 @@ public enum CLI {
                 case "-c":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.configShortPath = parsed.value
+                    options.visited.insert("c")
                     cursor += parsed.consumed
                 case "--config":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.configLongPath = parsed.value
+                    options.visited.insert("config")
                     cursor += parsed.consumed
                 case "-config":
                     throw CLIError.message("use -c or --config, not -config")
                 case "--format", "-format":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.format = parsed.value
+                    options.visited.insert("format")
                     cursor += parsed.consumed
                 case "--max-function-parameters", "-max-function-parameters":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.maxFunctionParameters = try intValue(parsed.value, flag: flag)
+                    options.visited.insert("max-function-parameters")
                     cursor += parsed.consumed
                 case "--require-file-header", "-require-file-header":
                     options.requireFileHeader = try optionalBool(inlineValue, flag: flag)
+                    options.visited.insert("require-file-header")
                 case "--min-file-header-length", "-min-file-header-length":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.minFileHeaderLength = try intValue(parsed.value, flag: flag)
+                    options.visited.insert("min-file-header-length")
                     cursor += parsed.consumed
                 case "--max-file-header-length", "-max-file-header-length":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.maxFileHeaderLength = try intValue(parsed.value, flag: flag)
+                    options.visited.insert("max-file-header-length")
                     cursor += parsed.consumed
                 case "--max-source-file-lines", "-max-source-file-lines":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.maxSourceFileLines = try intValue(parsed.value, flag: flag)
+                    options.visited.insert("max-source-file-lines")
                     cursor += parsed.consumed
                 case "--max-function-body-lines", "-max-function-body-lines":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.maxFunctionBodyLines = try intValue(parsed.value, flag: flag)
+                    options.visited.insert("max-function-body-lines")
                     cursor += parsed.consumed
                 case "--function-docstring-policy", "-function-docstring-policy":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.functionDocstringPolicy = try docstringPolicy(parsed.value, flag: flag)
+                    options.visited.insert("function-docstring-policy")
                     cursor += parsed.consumed
-                case "--indent-type", "-indent-type":
-                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
-                    options.indentType = try indentType(parsed.value, flag: flag)
-                    cursor += parsed.consumed
-                case "--indent-width", "-indent-width":
-                    let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
-                    options.indentWidth = try intValue(parsed.value, flag: flag)
-                    cursor += parsed.consumed
+                case "--check-format", "-check-format":
+                    options.checkFormat = try optionalBool(inlineValue, flag: flag)
+                    options.visited.insert("check-format")
                 case "--casing", "-casing":
                     options.casingEnabled = try optionalBool(inlineValue, flag: flag)
+                    options.visited.insert("casing")
                 case "--function-casing", "-function-casing":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.functionCasing = try casingStyle(parsed.value, flag: flag)
+                    options.visited.insert("function-casing")
                     cursor += parsed.consumed
                 case "--variable-casing", "-variable-casing":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.variableCasing = try casingStyle(parsed.value, flag: flag)
+                    options.visited.insert("variable-casing")
                     cursor += parsed.consumed
                 case "--type-casing", "-type-casing":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.typeCasing = try casingStyle(parsed.value, flag: flag)
+                    options.visited.insert("type-casing")
                     cursor += parsed.consumed
                 case "--constant-casing", "-constant-casing":
                     let parsed = try flagValue(FlagValueRequest(arguments: arguments, offset: cursor, inlineValue: inlineValue, flag: flag))
                     options.constantCasing = try casingStyle(parsed.value, flag: flag)
+                    options.visited.insert("constant-casing")
                     cursor += parsed.consumed
                 case "--github-actions-pinned", "-github-actions-pinned":
                     options.githubActionsPinned = try optionalBool(inlineValue, flag: flag)
+                    options.visited.insert("github-actions-pinned")
                 case "--version", "-version":
                     options.version = try optionalBool(inlineValue, flag: flag)
+                    options.visited.insert("version")
                 default:
                     if argument.hasPrefix("-") {
                         throw CLIError.message("unknown flag \(argument)")
@@ -344,14 +388,6 @@ public enum CLI {
         return policy
     }
 
-    private static func indentType(_ raw: String, flag: String) throws -> IndentType {
-        guard let type = IndentType(rawValue: raw) else {
-            throw CLIError.message("\(flag) must be tabs, spaces, or language-default")
-        }
-
-        return type
-    }
-
     private static func casingStyle(_ raw: String, flag: String) throws -> CasingStyle {
         guard let style = CasingStyle(rawValue: raw) else {
             throw CLIError.message("\(flag) must be off, language-default, camelCase, UpperCamelCase, snake_case, or SNAKE_CASE_FULL_CAPS")
@@ -372,9 +408,7 @@ public enum CLI {
 
     private static func applyOptions(_ request: OptionsApplyRequest) -> VetConfig {
         var config = request.config
-        if let max = request.options.maxFunctionParameters {
-            config.maxFunctionParameters.max = max
-        }
+        // Unsupported flags are rejected before applyOptions; do not copy them.
         if let required = request.options.requireFileHeader {
             config.sourceFileHeader.required = required
         }
@@ -387,36 +421,8 @@ public enum CLI {
         if let max = request.options.maxSourceFileLines {
             config.sourceFileLines.max = max
         }
-        if let max = request.options.maxFunctionBodyLines {
-            config.functionBodyLines.max = max
-        }
-        if let policy = request.options.functionDocstringPolicy {
-            config.functionDocstring.policy = policy
-        }
-        if let type = request.options.indentType {
-            config.indent.type = type
-        }
-        if let width = request.options.indentWidth {
-            config.indent.width = width
-        }
-        if let enabled = request.options.casingEnabled {
-            config.casing.enabled = enabled
-        }
-        if let style = request.options.functionCasing {
-            config.casing.enabled = true
-            config.casing.functions = style
-        }
-        if let style = request.options.variableCasing {
-            config.casing.enabled = true
-            config.casing.variables = style
-        }
-        if let style = request.options.typeCasing {
-            config.casing.enabled = true
-            config.casing.types = style
-        }
-        if let style = request.options.constantCasing {
-            config.casing.enabled = true
-            config.casing.constants = style
+        if let enabled = request.options.checkFormat {
+            config.format.enabled = enabled
         }
         if let enabled = request.options.githubActionsPinned {
             config.githubActionsPinned.enabled = enabled

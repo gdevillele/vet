@@ -22,9 +22,8 @@ final class ConfigTests: XCTestCase {
             max: 12
           function-docstring:
             policy: mandatory
-          indent:
-            type: spaces
-            width: 4
+          format:
+            enabled: false
           casing:
             enabled: true
             functions: camelCase
@@ -54,8 +53,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(config.sourceFileLines.max, 100)
         XCTAssertEqual(config.functionBodyLines.max, 12)
         XCTAssertEqual(config.functionDocstring.policy, .mandatory)
-        XCTAssertEqual(config.indent.type, .spaces)
-        XCTAssertEqual(config.indent.width, 4)
+        XCTAssertFalse(config.format.enabled)
         XCTAssertTrue(config.casing.enabled)
         XCTAssertEqual(config.casing.functions, .camelCase)
         XCTAssertEqual(config.casing.variables, .snakeCase)
@@ -75,9 +73,8 @@ final class ConfigTests: XCTestCase {
           max-function-parameters:
             enabled: true
             max: 3
-          indent:
-            type: tabs
-            width: 0
+          format:
+            enabled: true
           casing:
             enabled: false
             functions: language-default
@@ -97,9 +94,8 @@ final class ConfigTests: XCTestCase {
             rules:
               max-function-parameters:
                 max: 5
-              indent:
-                type: spaces
-                width: 4
+              format:
+                enabled: false
         """
 
         try yaml.write(to: configPath, atomically: true, encoding: .utf8)
@@ -113,8 +109,7 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(config.maxFunctionParameters.max, 5)
         XCTAssertEqual(config.fileSelection.files, ["Sources/**/*.swift"])
         XCTAssertEqual(config.fileSelection.exclude, ["**/*Tests.swift"])
-        XCTAssertEqual(config.indent.type, .spaces)
-        XCTAssertEqual(config.indent.width, 4)
+        XCTAssertFalse(config.format.enabled)
         XCTAssertFalse(config.casing.enabled)
         XCTAssertEqual(config.casing.functions, .languageDefault)
     }
@@ -206,8 +201,18 @@ final class ConfigTests: XCTestCase {
                 languages:
                   swift:
                     rules:
-                      indent:
-                        tab-width: 4
+                      format:
+                        mode: strict
+                """
+            ),
+            (
+                "removed-indent",
+                """
+                version: 1
+                rules:
+                  indent:
+                    type: spaces
+                    width: 4
                 """
             ),
         ]
@@ -243,18 +248,34 @@ final class ConfigTests: XCTestCase {
         XCTAssertThrowsError(try ConfigLoader.validate(config))
     }
 
-    func testValidateRejectsInvalidIndentWidth() {
-        var config = VetConfig.default()
-        config.indent.width = -1
-
-        XCTAssertThrowsError(try ConfigLoader.validate(config))
-    }
-
     func testValidateRejectsInvalidCasingIgnorePattern() {
         var config = VetConfig.default()
         config.casing.ignorePatterns = ["["]
 
         XCTAssertThrowsError(try ConfigLoader.validate(config))
+    }
+
+    func testDefaultDisablesUnimplementedMaxFunctionParameters() {
+        let config = VetConfig.default()
+        XCTAssertFalse(config.maxFunctionParameters.enabled)
+        XCTAssertTrue(config.format.enabled)
+        XCTAssertEqual(ConfigLoader.activeUnsupportedRules(config), [])
+    }
+
+    func testActiveUnsupportedRulesReportsNonDefaultSettings() {
+        var config = VetConfig.default()
+        config.maxFunctionParameters.enabled = true
+        config.functionBodyLines.max = 10
+        config.functionDocstring.policy = .mandatory
+        config.casing.enabled = true
+
+        let active = ConfigLoader.activeUnsupportedRules(config)
+        XCTAssertEqual(Set(active), Set([
+            "max-function-parameters",
+            "max-function-body-lines",
+            "function-docstring",
+            "casing",
+        ]))
     }
 
     private func temporaryDirectory() -> URL {

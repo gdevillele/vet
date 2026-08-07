@@ -1,1 +1,0 @@
-spec/conformance/casing/swift/invalid.swift:1:5: VET013: constant "max_connections" must use SNAKE_CASE_FULL_CAPS

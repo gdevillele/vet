@@ -4,6 +4,7 @@ languages:
   - rust
   - swift
   - cpp
+  - typescript
 diagnostic_fields:
   - rule_id
   - severity
@@ -26,13 +27,18 @@ rules:
         implementation: implemented
       swift:
         status: compatible
-        implementation: implemented
+        implementation: unimplemented
       cpp:
         status: compatible
         implementation: unimplemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Functions must not declare more parameters than the configured maximum.
     notes:
       - Receivers such as Go method receivers are not counted as function parameters.
+      - Swift and C/C++ do not implement this rule (no dependable structural parser in those runners).
+      - TypeScript implements this rule via the TypeScript compiler API.
   VET002:
     name: source-file-header-required
     default_severity: error
@@ -49,6 +55,9 @@ rules:
         status: compatible
         implementation: implemented
       cpp:
+        status: compatible
+        implementation: implemented
+      typescript:
         status: compatible
         implementation: implemented
     summary: Source files must declare a leading file header when enabled.
@@ -70,6 +79,9 @@ rules:
         status: compatible
         implementation: implemented
       cpp:
+        status: compatible
+        implementation: implemented
+      typescript:
         status: compatible
         implementation: implemented
     summary: Source file headers must be at least the configured number of characters.
@@ -94,6 +106,9 @@ rules:
       cpp:
         status: compatible
         implementation: implemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Source file headers must be at most the configured number of characters.
     notes:
       - A value of 0 disables the upper bound.
@@ -116,6 +131,9 @@ rules:
       cpp:
         status: compatible
         implementation: implemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Source files must not exceed the configured number of physical lines.
     notes:
       - A value of 0 disables the rule.
@@ -134,14 +152,19 @@ rules:
         implementation: implemented
       swift:
         status: compatible
-        implementation: implemented
+        implementation: unimplemented
       cpp:
         status: compatible
         implementation: unimplemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Function bodies must not exceed the configured number of physical lines.
     notes:
       - A value of 0 disables the rule.
       - Body line counts exclude the opening and closing brace lines.
+      - Swift and C/C++ do not implement this rule.
+      - TypeScript implements this rule via the TypeScript compiler API.
   VET007:
     name: function-docstring-policy
     default_severity: error
@@ -156,19 +179,24 @@ rules:
         implementation: implemented
       swift:
         status: compatible
-        implementation: implemented
+        implementation: unimplemented
       cpp:
         status: compatible
         implementation: unimplemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Function docstrings must follow the configured policy.
     notes:
       - Supported policies are forbidden, optional, and mandatory.
       - The rule applies to named function declarations, not function literals.
+      - Swift and C/C++ do not implement this rule.
+      - TypeScript implements this rule via the TypeScript compiler API.
   VET008:
-    name: indent-type
+    name: source-format
     default_severity: error
     default_config:
-      type: language-default
+      enabled: true
     language_compatibility:
       go:
         status: compatible
@@ -182,37 +210,18 @@ rules:
       cpp:
         status: compatible
         implementation: implemented
-    summary: Source indentation must use the configured indentation type.
+      typescript:
+        status: compatible
+        implementation: implemented
+    summary: Source files must match the language standard formatter when enabled.
     notes:
-      - Supported types are tabs, spaces, and language-default.
-      - language-default means tabs for Go, spaces for Swift, Rust, and C/C++.
-      - Blank lines are ignored.
-      - Only leading indentation is checked.
-  VET009:
-    name: indent-width
-    default_severity: error
-    default_config:
-      width: 0
-    language_compatibility:
-      go:
-        status: compatible
-        implementation: implemented
-      rust:
-        status: compatible
-        implementation: implemented
-      swift:
-        status: compatible
-        implementation: implemented
-      cpp:
-        status: compatible
-        implementation: implemented
-    summary: Space indentation must be a multiple of the configured width.
-    notes:
-      - A value of 0 disables the rule.
-      - This rule only applies when the effective indentation type is spaces.
-      - Blank lines are ignored.
-      - Only leading indentation is checked.
-      - Swift continuation lines are exempt so their syntax may be aligned independently of block indentation.
+      - Enforcement delegates to industry-standard formatters rather than custom indent scanning.
+      - Go uses go/format (gofmt semantics).
+      - Rust invokes rustfmt (edition 2021) on the source and requires the formatted output to match the input exactly.
+      - Swift invokes swift-format lint --strict.
+      - C/C++ invokes clang-format --dry-run --Werror.
+      - TypeScript uses Prettier (prettier.format) and requires formatted output to match the input.
+      - If a required external formatter is missing from PATH, the runner fails with a clear error (does not silently skip).
   VET010:
     name: function-casing
     default_severity: error
@@ -230,14 +239,19 @@ rules:
         implementation: implemented
       swift:
         status: compatible
-        implementation: implemented
+        implementation: unimplemented
       cpp:
         status: compatible
         implementation: unimplemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Function and method names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
-      - language-default means exported UpperCamelCase and unexported camelCase for Go, camelCase for Swift functions, and snake_case for Rust functions.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, snake_case for Rust functions, and camelCase for TypeScript functions.
+      - Swift and C/C++ do not implement this rule.
+      - TypeScript implements this rule via the TypeScript compiler API.
   VET011:
     name: variable-casing
     default_severity: error
@@ -255,14 +269,19 @@ rules:
         implementation: implemented
       swift:
         status: compatible
-        implementation: implemented
+        implementation: unimplemented
       cpp:
         status: compatible
         implementation: unimplemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Variable names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
-      - language-default means exported UpperCamelCase and unexported camelCase for Go, camelCase for Swift variables, and snake_case for Rust variables.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, snake_case for Rust variables, and camelCase for TypeScript variables.
+      - Swift and C/C++ do not implement this rule.
+      - TypeScript implements this rule via the TypeScript compiler API.
   VET012:
     name: type-casing
     default_severity: error
@@ -278,14 +297,19 @@ rules:
         implementation: implemented
       swift:
         status: compatible
-        implementation: implemented
+        implementation: unimplemented
       cpp:
         status: compatible
         implementation: unimplemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Type names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
-      - language-default means exported UpperCamelCase and unexported camelCase for Go, and UpperCamelCase for Swift and Rust types.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, UpperCamelCase for Rust and TypeScript types.
+      - Swift and C/C++ do not implement this rule.
+      - TypeScript implements this rule via the TypeScript compiler API.
   VET013:
     name: constant-casing
     default_severity: error
@@ -303,14 +327,19 @@ rules:
         implementation: implemented
       swift:
         status: compatible
-        implementation: implemented
+        implementation: unimplemented
       cpp:
         status: compatible
         implementation: unimplemented
+      typescript:
+        status: compatible
+        implementation: implemented
     summary: Constant names must use the configured casing style.
     notes:
       - Supported styles are off, language-default, camelCase, UpperCamelCase, snake_case, and SNAKE_CASE_FULL_CAPS.
-      - language-default means exported UpperCamelCase and unexported camelCase for Go, camelCase for Swift constants, and SNAKE_CASE_FULL_CAPS for Rust constants.
+      - language-default means exported UpperCamelCase and unexported camelCase for Go, SNAKE_CASE_FULL_CAPS for Rust constants, and camelCase for TypeScript constants.
+      - Swift and C/C++ do not implement this rule.
+      - TypeScript implements this rule via the TypeScript compiler API.
   VET014:
     name: github-actions-pinned
     default_severity: error
@@ -327,6 +356,9 @@ rules:
         status: compatible
         implementation: implemented
       cpp:
+        status: compatible
+        implementation: implemented
+      typescript:
         status: compatible
         implementation: implemented
     summary: GitHub workflow step actions must be pinned to full-length commit SHAs when enabled.

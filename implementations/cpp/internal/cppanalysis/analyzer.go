@@ -14,12 +14,14 @@ const (
 	RuleSourceFileHeaderMin      = "VET003"
 	RuleSourceFileHeaderMax      = "VET004"
 	RuleSourceFileLines          = "VET005"
-	RuleIndentType               = "VET008"
-	RuleIndentWidth              = "VET009"
+	RuleSourceFormat             = "VET008"
+
+	clangFormatBinary = "clang-format"
 )
 
 type Analyzer struct {
 	config config.Config
+	runner CommandRunner
 }
 
 type AnalyzeFileRequest struct {
@@ -35,16 +37,28 @@ type sourceFileHeader struct {
 }
 
 func New(cfg config.Config) Analyzer {
-	return Analyzer{config: cfg}
+	return NewWithRunner(cfg, ExecRunner{})
 }
 
-func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) []diagnostic.Diagnostic {
+func NewWithRunner(cfg config.Config, runner CommandRunner) Analyzer {
+	if runner == nil {
+		runner = ExecRunner{}
+	}
+	return Analyzer{config: cfg, runner: runner}
+}
+
+func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) ([]diagnostic.Diagnostic, error) {
 	source := string(request.Source)
 	var diagnostics []diagnostic.Diagnostic
 	diagnostics = append(diagnostics, a.checkSourceFileLines(request.Path, source)...)
-	diagnostics = append(diagnostics, a.checkIndentation(request.Path, source)...)
+
+	formatDiagnostics, err := a.checkFormat(request.Path)
+	if err != nil {
+		return nil, err
+	}
+	diagnostics = append(diagnostics, formatDiagnostics...)
 	diagnostics = append(diagnostics, a.checkFileHeader(request.Path, source)...)
-	return diagnostics
+	return diagnostics, nil
 }
 
 func (a Analyzer) checkSourceFileLines(path string, source string) []diagnostic.Diagnostic {
@@ -68,66 +82,37 @@ func (a Analyzer) checkSourceFileLines(path string, source string) []diagnostic.
 	}}
 }
 
-func (a Analyzer) checkIndentation(path string, source string) []diagnostic.Diagnostic {
-	rule := a.config.Indent
-	effectiveType := rule.Type
-	if effectiveType == config.IndentLanguageDefault {
-		effectiveType = config.IndentSpaces
+// checkFormat runs clang-format --dry-run --Werror when format checking is
+// enabled. A missing clang-format binary is a hard error (never a silent skip).
+func (a Analyzer) checkFormat(path string) ([]diagnostic.Diagnostic, error) {
+	if !a.config.Format.Enabled {
+		return nil, nil
 	}
 
-	ignoredLines := nonCodeLeadingLines(source)
-	diagnostics := make([]diagnostic.Diagnostic, 0)
-	lines := strings.Split(source, "\n")
-
-	for index, line := range lines {
-		lineNumber := index + 1
-		if ignoredLines[lineNumber] || strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		leading := leadingIndent(line)
-		if leading == "" {
-			continue
-		}
-
-		switch effectiveType {
-		case config.IndentSpaces:
-			if column := strings.IndexRune(leading, '\t'); column >= 0 {
-				diagnostics = append(diagnostics, diagnostic.Diagnostic{
-					RuleID:   RuleIndentType,
-					Severity: diagnostic.SeverityError,
-					Message:  "line indentation uses tabs; expected spaces",
-					File:     path,
-					Line:     lineNumber,
-					Column:   column + 1,
-				})
-				continue
-			}
-			if rule.Width > 0 && len(leading)%rule.Width != 0 {
-				diagnostics = append(diagnostics, diagnostic.Diagnostic{
-					RuleID:   RuleIndentWidth,
-					Severity: diagnostic.SeverityError,
-					Message:  fmt.Sprintf("line indentation has %d spaces; expected a multiple of %d", len(leading), rule.Width),
-					File:     path,
-					Line:     lineNumber,
-					Column:   1,
-				})
-			}
-		case config.IndentTabs:
-			if column := strings.IndexRune(leading, ' '); column >= 0 {
-				diagnostics = append(diagnostics, diagnostic.Diagnostic{
-					RuleID:   RuleIndentType,
-					Severity: diagnostic.SeverityError,
-					Message:  "line indentation uses spaces; expected tabs",
-					File:     path,
-					Line:     lineNumber,
-					Column:   column + 1,
-				})
-			}
-		}
+	binary, err := a.runner.LookPath(clangFormatBinary)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"clang-format not found in PATH (required for source-format / VET008); install clang-format or disable with -check-format=false: %w",
+			err,
+		)
 	}
 
-	return diagnostics
+	_, exitCode, err := a.runner.Run(binary, []string{"--dry-run", "--Werror", path})
+	if err != nil {
+		return nil, fmt.Errorf("run clang-format on %s: %w", path, err)
+	}
+	if exitCode == 0 {
+		return nil, nil
+	}
+
+	return []diagnostic.Diagnostic{{
+		RuleID:   RuleSourceFormat,
+		Severity: diagnostic.SeverityError,
+		Message:  "file is not clang-format-formatted",
+		File:     path,
+		Line:     1,
+		Column:   1,
+	}}, nil
 }
 
 func (a Analyzer) checkFileHeader(path string, source string) []diagnostic.Diagnostic {
@@ -193,17 +178,6 @@ func sourceLineCount(source string) int {
 		count--
 	}
 	return count
-}
-
-func leadingIndent(line string) string {
-	index := 0
-	for index < len(line) {
-		if line[index] != ' ' && line[index] != '\t' {
-			break
-		}
-		index++
-	}
-	return line[:index]
 }
 
 func findSourceFileHeader(source string) sourceFileHeader {
@@ -361,224 +335,4 @@ func offsetToLineColumn(source string, offset int) (int, int) {
 		column++
 	}
 	return line, column
-}
-
-// nonCodeLeadingLines returns line numbers whose leading whitespace should not
-// be checked because they fall inside multi-line block comments or string /
-// character literals. Continuation lines after the first line of such a span
-// are ignored so that content indentation is not treated as source indentation.
-func nonCodeLeadingLines(source string) map[int]bool {
-	ignored := make(map[int]bool)
-	bytes := []byte(source)
-	cursor := 0
-	line := 1
-
-	// Skip a leading UTF-8 BOM so it is not misread as code.
-	if len(bytes) >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF {
-		cursor = 3
-	}
-
-	for cursor < len(bytes) {
-		if bytes[cursor] == '\n' {
-			line++
-			cursor++
-			continue
-		}
-
-		if cursor+1 < len(bytes) && bytes[cursor] == '/' && bytes[cursor+1] == '/' {
-			// Line comments continue across physical lines when the previous
-			// physical line ends in an unescaped backslash (C/C++ phase 2).
-			startLine := line
-			cursor += 2
-			for cursor < len(bytes) {
-				if bytes[cursor] == '\\' {
-					if cursor+1 < len(bytes) && bytes[cursor+1] == '\n' {
-						line++
-						if line > startLine {
-							ignored[line] = true
-						}
-						cursor += 2
-						continue
-					}
-					if cursor+2 < len(bytes) && bytes[cursor+1] == '\r' && bytes[cursor+2] == '\n' {
-						line++
-						if line > startLine {
-							ignored[line] = true
-						}
-						cursor += 3
-						continue
-					}
-				}
-				if bytes[cursor] == '\n' {
-					line++
-					cursor++
-					break
-				}
-				cursor++
-			}
-			continue
-		}
-
-		if cursor+1 < len(bytes) && bytes[cursor] == '/' && bytes[cursor+1] == '*' {
-			startLine := line
-			cursor += 2
-			for cursor+1 < len(bytes) {
-				if bytes[cursor] == '\n' {
-					line++
-					if line > startLine {
-						ignored[line] = true
-					}
-					cursor++
-					continue
-				}
-				if bytes[cursor] == '*' && bytes[cursor+1] == '/' {
-					cursor += 2
-					break
-				}
-				cursor++
-			}
-			continue
-		}
-
-		if bytes[cursor] == '"' || bytes[cursor] == '\'' {
-			quote := bytes[cursor]
-			startLine := line
-			cursor++
-			for cursor < len(bytes) {
-				if bytes[cursor] == '\\' && cursor+1 < len(bytes) {
-					if bytes[cursor+1] == '\n' {
-						line++
-						if line > startLine {
-							ignored[line] = true
-						}
-					}
-					cursor += 2
-					continue
-				}
-				if bytes[cursor] == '\n' {
-					line++
-					if line > startLine {
-						ignored[line] = true
-					}
-					cursor++
-					continue
-				}
-				if bytes[cursor] == quote {
-					cursor++
-					break
-				}
-				cursor++
-			}
-			continue
-		}
-
-		// C++11 raw string literals: R"delim( ... )delim" (optional L/u/U/u8 prefix).
-		if isRawStringPrefix(bytes, cursor) {
-			startLine := line
-			next, nextLine, ok := skipRawString(bytes, cursor, line)
-			if !ok {
-				// Fail closed: treat only 'R' as consumed so the following '"'
-				// (if any) is scanned as an ordinary string literal.
-				cursor++
-				continue
-			}
-			cursor, line = next, nextLine
-			for ignoredLine := startLine + 1; ignoredLine <= line; ignoredLine++ {
-				ignored[ignoredLine] = true
-			}
-			continue
-		}
-
-		cursor++
-	}
-
-	return ignored
-}
-
-func isIdentifierByte(b byte) bool {
-	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '_'
-}
-
-// isRawStringPrefix reports whether bytes[cursor] starts a C++ raw string
-// prefix token (optional encoding prefix L/u/U/u8, then R"). The R" sequence
-// must begin at a token boundary so identifier tails like fooR" are rejected.
-func isRawStringPrefix(bytes []byte, cursor int) bool {
-	if cursor >= len(bytes) || bytes[cursor] != 'R' {
-		return false
-	}
-	if cursor+1 >= len(bytes) || bytes[cursor+1] != '"' {
-		return false
-	}
-
-	if cursor == 0 {
-		return true
-	}
-
-	// u8R"
-	if cursor >= 2 && bytes[cursor-2] == 'u' && bytes[cursor-1] == '8' {
-		return cursor == 2 || !isIdentifierByte(bytes[cursor-3])
-	}
-
-	// L / u / U encoding prefixes
-	prev := bytes[cursor-1]
-	if prev == 'L' || prev == 'u' || prev == 'U' {
-		return cursor == 1 || !isIdentifierByte(bytes[cursor-2])
-	}
-
-	return !isIdentifierByte(prev)
-}
-
-// isValidRawStringDChar reports whether b is allowed in a C++ raw-string
-// d-char-sequence. The standard forbids space, ), \, control characters, and
-// quotation marks among others; d-char-sequence length is at most 16.
-func isValidRawStringDChar(b byte) bool {
-	switch b {
-	case ' ', '\t', '\n', '\r', '\f', '\v', '"', '\\', ')', '(':
-		return false
-	}
-	// Keep the scanner ASCII-oriented: reject DEL and non-printable controls.
-	if b < 0x20 || b > 0x7E {
-		return false
-	}
-	return true
-}
-
-// skipRawString advances past a well-formed raw string starting at R".
-// ok is false when the delimiter is invalid; the caller should fail closed.
-func skipRawString(bytes []byte, cursor int, line int) (int, int, bool) {
-	// bytes[cursor] is 'R', bytes[cursor+1] is '"'.
-	cursor += 2
-	delimStart := cursor
-	for cursor < len(bytes) {
-		ch := bytes[cursor]
-		if ch == '(' {
-			break
-		}
-		if !isValidRawStringDChar(ch) || cursor-delimStart >= 16 {
-			return 0, line, false
-		}
-		cursor++
-	}
-	if cursor >= len(bytes) || bytes[cursor] != '(' {
-		// Never found a valid opening parenthesis after R".
-		return 0, line, false
-	}
-	delimiter := string(bytes[delimStart:cursor])
-	cursor++ // skip (
-
-	closing := ")" + delimiter + `"`
-	for cursor < len(bytes) {
-		if bytes[cursor] == '\n' {
-			line++
-			cursor++
-			continue
-		}
-		if cursor+len(closing) <= len(bytes) && string(bytes[cursor:cursor+len(closing)]) == closing {
-			return cursor + len(closing), line, true
-		}
-		cursor++
-	}
-	// Unterminated raw string: still treat the span as non-code through EOF so
-	// partial multi-line raw content is not indent-checked.
-	return cursor, line, true
 }

@@ -1,1 +1,0 @@
-spec/conformance/indent/go/width.go:4:1: VET009: line indentation has 2 spaces; expected a multiple of 4

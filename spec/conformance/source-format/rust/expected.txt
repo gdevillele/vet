@@ -1,0 +1,1 @@
+spec/conformance/source-format/rust/invalid.rs:1:1: VET008: file is not rustfmt-formatted

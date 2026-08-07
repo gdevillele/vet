@@ -7,19 +7,21 @@ public struct VetConfig: Equatable {
     public var sourceFileLines: SourceFileLinesRule
     public var functionBodyLines: FunctionBodyLinesRule
     public var functionDocstring: FunctionDocstringRule
-    public var indent: IndentRule
+    public var format: FormatRule
     public var casing: CasingRule
     public var githubActionsPinned: GithubActionsPinnedRule
     public var fileSelection: FileSelection
 
     public static func `default`() -> VetConfig {
         VetConfig(
-            maxFunctionParameters: MaxFunctionParametersRule(enabled: true, max: 1),
+            // VET001 is unimplemented for Swift; keep it disabled so a zero-flag
+            // run does not appear to enforce a rule the analyzer never consults.
+            maxFunctionParameters: MaxFunctionParametersRule(enabled: false, max: 1),
             sourceFileHeader: SourceFileHeaderRule(required: false, minLength: 0, maxLength: 0),
             sourceFileLines: SourceFileLinesRule(max: 0),
             functionBodyLines: FunctionBodyLinesRule(max: 0),
             functionDocstring: FunctionDocstringRule(policy: .optional),
-            indent: IndentRule(type: .languageDefault, width: 0),
+            format: FormatRule(enabled: true),
             casing: CasingRule(
                 enabled: false,
                 functions: .languageDefault,
@@ -64,15 +66,8 @@ public struct FunctionDocstringRule: Equatable {
     public var policy: FunctionDocstringPolicy
 }
 
-public enum IndentType: String, Codable, Equatable {
-    case tabs
-    case spaces
-    case languageDefault = "language-default"
-}
-
-public struct IndentRule: Equatable {
-    public var type: IndentType
-    public var width: Int
+public struct FormatRule: Equatable {
+    public var enabled: Bool
 }
 
 public enum CasingStyle: String, Codable, Equatable {
@@ -161,7 +156,7 @@ struct RulesFile: Decodable {
     let sourceFileLines: SourceFileLinesFile?
     let functionBodyLines: FunctionBodyLinesFile?
     let functionDocstring: FunctionDocstringFile?
-    let indent: IndentFile?
+    let format: FormatFile?
     let casing: CasingFile?
     let githubActionsPinned: GithubActionsPinnedFile?
 
@@ -171,7 +166,7 @@ struct RulesFile: Decodable {
         case sourceFileLines = "max-source-file-lines"
         case functionBodyLines = "max-function-body-lines"
         case functionDocstring = "function-docstring"
-        case indent
+        case format
         case casing
         case githubActionsPinned = "github-actions-pinned"
     }
@@ -184,7 +179,7 @@ struct RulesFile: Decodable {
         sourceFileLines = try container.decodeIfPresent(SourceFileLinesFile.self, forKey: .sourceFileLines)
         functionBodyLines = try container.decodeIfPresent(FunctionBodyLinesFile.self, forKey: .functionBodyLines)
         functionDocstring = try container.decodeIfPresent(FunctionDocstringFile.self, forKey: .functionDocstring)
-        indent = try container.decodeIfPresent(IndentFile.self, forKey: .indent)
+        format = try container.decodeIfPresent(FormatFile.self, forKey: .format)
         casing = try container.decodeIfPresent(CasingFile.self, forKey: .casing)
         githubActionsPinned = try container.decodeIfPresent(GithubActionsPinnedFile.self, forKey: .githubActionsPinned)
     }
@@ -269,20 +264,17 @@ struct FunctionDocstringFile: Decodable {
     }
 }
 
-struct IndentFile: Decodable {
-    let type: IndentType?
-    let width: Int?
+struct FormatFile: Decodable {
+    let enabled: Bool?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
-        case type
-        case width
+        case enabled
     }
 
     init(from decoder: Decoder) throws {
         try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        type = try container.decodeIfPresent(IndentType.self, forKey: .type)
-        width = try container.decodeIfPresent(Int.self, forKey: .width)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
     }
 }
 
@@ -380,6 +372,36 @@ public enum ConfigError: Error, CustomStringConvertible, Equatable {
 }
 
 public enum ConfigLoader {
+    /// Config keys that the Swift analyzer does not enforce. Non-default values
+    /// for these settings must not be presented as a clean silent success.
+    public static func unsupportedRuleNames() -> [String] {
+        [
+            "max-function-parameters",
+            "max-function-body-lines",
+            "function-docstring",
+            "casing",
+        ]
+    }
+
+    /// Returns unsupported rule keys that are configured with a non-default /
+    /// active setting. Callers should warn rather than imply those rules were enforced.
+    public static func activeUnsupportedRules(_ config: VetConfig) -> [String] {
+        var active: [String] = []
+        if config.maxFunctionParameters.enabled {
+            active.append("max-function-parameters")
+        }
+        if config.functionBodyLines.max > 0 {
+            active.append("max-function-body-lines")
+        }
+        if config.functionDocstring.policy != .optional {
+            active.append("function-docstring")
+        }
+        if config.casing.enabled {
+            active.append("casing")
+        }
+        return active
+    }
+
     public static func load(_ request: ConfigLoadRequest) throws -> VetConfig {
         let yaml = try String(contentsOfFile: request.path, encoding: .utf8)
         let document = try YAMLDecoder().decode(ConfigFile.self, from: yaml)
@@ -447,12 +469,9 @@ public enum ConfigLoader {
             }
         }
 
-        if let rule = rules.indent {
-            if let type = rule.type {
-                result.indent.type = type
-            }
-            if let width = rule.width {
-                result.indent.width = width
+        if let rule = rules.format {
+            if let enabled = rule.enabled {
+                result.format.enabled = enabled
             }
         }
 
@@ -509,9 +528,6 @@ public enum ConfigLoader {
         }
         if config.functionBodyLines.max < 0 {
             throw ConfigError.invalid("max-function-body-lines.max must be zero or greater")
-        }
-        if config.indent.width < 0 {
-            throw ConfigError.invalid("indent.width must be zero or greater")
         }
         for pattern in config.casing.ignorePatterns {
             do {

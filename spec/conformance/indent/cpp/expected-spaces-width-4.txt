@@ -1,1 +1,0 @@
-spec/conformance/indent/cpp/width.c:2:1: VET009: line indentation has 2 spaces; expected a multiple of 4

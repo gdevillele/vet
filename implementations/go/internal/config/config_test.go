@@ -23,9 +23,8 @@ rules:
     max: 12
   function-docstring:
     policy: mandatory
-  indent:
-    type: spaces
-    width: 4
+  format:
+    enabled: false
   casing:
     enabled: true
     functions: camelCase
@@ -76,11 +75,8 @@ rules:
 	if cfg.FunctionDocstring.Policy != FunctionDocstringMandatory {
 		t.Fatalf("expected mandatory docstring policy, got %q", cfg.FunctionDocstring.Policy)
 	}
-	if cfg.Indent.Type != IndentSpaces {
-		t.Fatalf("expected spaces indent type, got %q", cfg.Indent.Type)
-	}
-	if cfg.Indent.Width != 4 {
-		t.Fatalf("expected indent width 4, got %d", cfg.Indent.Width)
+	if cfg.Format.Enabled {
+		t.Fatalf("expected format rule to be disabled")
 	}
 	if !cfg.Casing.Enabled {
 		t.Fatalf("expected casing rule to be enabled")
@@ -115,9 +111,8 @@ rules:
   max-function-parameters:
     enabled: true
     max: 3
-  indent:
-    type: spaces
-    width: 2
+  format:
+    enabled: true
   casing:
     enabled: false
     functions: language-default
@@ -130,9 +125,8 @@ languages:
     rules:
       max-function-parameters:
         max: 2
-      indent:
-        type: tabs
-        width: 0
+      format:
+        enabled: false
   swift:
     rules:
       max-function-parameters:
@@ -164,11 +158,8 @@ languages:
 	if len(cfg.FileSelection.Exclude) != 1 || cfg.FileSelection.Exclude[0] != "**/*_test.go" {
 		t.Fatalf("expected go file excludes to load, got %#v", cfg.FileSelection.Exclude)
 	}
-	if cfg.Indent.Type != IndentTabs {
-		t.Fatalf("expected go indent type override to be tabs, got %q", cfg.Indent.Type)
-	}
-	if cfg.Indent.Width != 0 {
-		t.Fatalf("expected go indent width override to be 0, got %d", cfg.Indent.Width)
+	if cfg.Format.Enabled {
+		t.Fatalf("expected go format override to be disabled")
 	}
 	if cfg.Casing.Enabled {
 		t.Fatalf("expected swift casing override to be ignored for go")
@@ -276,18 +267,11 @@ func TestValidateRejectsInvalidFunctionDocstringPolicy(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsInvalidIndentConfig(t *testing.T) {
+func TestValidateAcceptsFormatConfig(t *testing.T) {
 	cfg := Default()
-	cfg.Indent.Type = "mixed"
-
-	if err := Validate(cfg); err == nil {
-		t.Fatalf("expected Validate to reject invalid indent type")
-	}
-
-	cfg = Default()
-	cfg.Indent.Width = -1
-	if err := Validate(cfg); err == nil {
-		t.Fatalf("expected Validate to reject invalid indent width")
+	cfg.Format.Enabled = false
+	if err := Validate(cfg); err != nil {
+		t.Fatalf("expected Validate to accept format config, got %v", err)
 	}
 }
 

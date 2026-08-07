@@ -85,8 +85,7 @@ func Run(invocation Invocation) int {
 	maxSourceFileLines := flags.Int("max-source-file-lines", 0, "maximum source file lines; 0 disables the bound")
 	maxFunctionBodyLines := flags.Int("max-function-body-lines", 0, "maximum function body lines; 0 disables the bound")
 	functionDocstringPolicy := flags.String("function-docstring-policy", string(config.FunctionDocstringOptional), "function docstring policy: forbidden, optional, or mandatory")
-	indentType := flags.String("indent-type", string(config.IndentLanguageDefault), "indent type: tabs, spaces, or language-default")
-	indentWidth := flags.Int("indent-width", 0, "space indentation width; 0 disables the width check")
+	checkFormat := flags.Bool("check-format", true, "require sources to match gofmt (go/format)")
 	casingEnabled := flags.Bool("casing", false, "enable identifier casing checks")
 	functionCasing := flags.String("function-casing", string(config.CasingLanguageDefault), "function casing style")
 	variableCasing := flags.String("variable-casing", string(config.CasingLanguageDefault), "variable casing style")
@@ -158,11 +157,8 @@ func Run(invocation Invocation) int {
 	if visited["function-docstring-policy"] {
 		cfg.FunctionDocstring.Policy = config.FunctionDocstringPolicy(*functionDocstringPolicy)
 	}
-	if visited["indent-type"] {
-		cfg.Indent.Type = config.IndentType(*indentType)
-	}
-	if visited["indent-width"] {
-		cfg.Indent.Width = *indentWidth
+	if visited["check-format"] {
+		cfg.Format.Enabled = *checkFormat
 	}
 	if visited["casing"] {
 		cfg.Casing.Enabled = *casingEnabled

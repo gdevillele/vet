@@ -1,0 +1,1 @@
+spec/conformance/source-file-header/typescript/missing.ts:1:1: VET002: source file has no header

@@ -17,7 +17,7 @@ type Config struct {
 	SourceFileLines       SourceFileLinesRule
 	FunctionBodyLines     FunctionBodyLinesRule
 	FunctionDocstring     FunctionDocstringRule
-	Indent                IndentRule
+	Format                FormatRule
 	Casing                CasingRule
 	GithubActionsPinned   GithubActionsPinnedRule
 	FileSelection         FileSelection
@@ -54,17 +54,8 @@ type FunctionDocstringRule struct {
 	Policy FunctionDocstringPolicy
 }
 
-type IndentType string
-
-const (
-	IndentTabs            IndentType = "tabs"
-	IndentSpaces          IndentType = "spaces"
-	IndentLanguageDefault IndentType = "language-default"
-)
-
-type IndentRule struct {
-	Type  IndentType
-	Width int
+type FormatRule struct {
+	Enabled bool
 }
 
 type CasingStyle string
@@ -121,7 +112,7 @@ type rulesFile struct {
 	SourceFileLines       *sourceFileLinesFile       `yaml:"max-source-file-lines"`
 	FunctionBodyLines     *functionBodyLinesFile     `yaml:"max-function-body-lines"`
 	FunctionDocstring     *functionDocstringFile     `yaml:"function-docstring"`
-	Indent                *indentFile                `yaml:"indent"`
+	Format                *formatFile                `yaml:"format"`
 	Casing                *casingFile                `yaml:"casing"`
 	GithubActionsPinned   *githubActionsPinnedFile   `yaml:"github-actions-pinned"`
 }
@@ -149,9 +140,8 @@ type functionDocstringFile struct {
 	Policy *FunctionDocstringPolicy `yaml:"policy"`
 }
 
-type indentFile struct {
-	Type  *IndentType `yaml:"type"`
-	Width *int        `yaml:"width"`
+type formatFile struct {
+	Enabled *bool `yaml:"enabled"`
 }
 
 type casingFile struct {
@@ -188,9 +178,8 @@ func Default() Config {
 		FunctionDocstring: FunctionDocstringRule{
 			Policy: FunctionDocstringOptional,
 		},
-		Indent: IndentRule{
-			Type:  IndentLanguageDefault,
-			Width: 0,
+		Format: FormatRule{
+			Enabled: true,
 		},
 		Casing: CasingRule{
 			Enabled:   false,
@@ -286,13 +275,10 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		}
 	}
 
-	if rules.Indent != nil {
-		rule := rules.Indent
-		if rule.Type != nil {
-			result.Indent.Type = *rule.Type
-		}
-		if rule.Width != nil {
-			result.Indent.Width = *rule.Width
+	if rules.Format != nil {
+		rule := rules.Format
+		if rule.Enabled != nil {
+			result.Format.Enabled = *rule.Enabled
 		}
 	}
 
@@ -354,14 +340,6 @@ func Validate(cfg Config) error {
 	case FunctionDocstringForbidden, FunctionDocstringOptional, FunctionDocstringMandatory:
 	default:
 		return fmt.Errorf("function-docstring.policy must be forbidden, optional, or mandatory")
-	}
-	switch cfg.Indent.Type {
-	case IndentTabs, IndentSpaces, IndentLanguageDefault:
-	default:
-		return fmt.Errorf("indent.type must be tabs, spaces, or language-default")
-	}
-	if cfg.Indent.Width < 0 {
-		return fmt.Errorf("indent.width must be zero or greater")
 	}
 	if err := validateCasingStyle("casing.functions", cfg.Casing.Functions); err != nil {
 		return err

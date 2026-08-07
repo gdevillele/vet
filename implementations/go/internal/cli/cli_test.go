@@ -637,7 +637,7 @@ func accepted(value int) {}
 	}
 }
 
-func TestRunReportsIndentDiagnostics(t *testing.T) {
+func TestRunReportsFormatDiagnostics(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "sample.go")
 	source := []byte("package sample\n\nfunc rejected() {\n  println(\"one\")\n}\n")
@@ -650,8 +650,7 @@ func TestRunReportsIndentDiagnostics(t *testing.T) {
 	var stderr bytes.Buffer
 	code := Run(Invocation{
 		Args: []string{
-			"--indent-type", "spaces",
-			"--indent-width", "4",
+			"--check-format",
 			dir,
 		},
 		Stdout: &stdout,
@@ -662,8 +661,8 @@ func TestRunReportsIndentDiagnostics(t *testing.T) {
 		t.Fatalf("expected exit code 1, got %d; stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 
-	if !strings.Contains(stdout.String(), "VET009") {
-		t.Fatalf("expected VET009 diagnostic, got %q", stdout.String())
+	if !strings.Contains(stdout.String(), "VET008") {
+		t.Fatalf("expected VET008 diagnostic, got %q", stdout.String())
 	}
 }
 

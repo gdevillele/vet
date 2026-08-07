@@ -3,20 +3,18 @@ mod common;
 use vet::{
     analysis::{
         RULE_CONSTANT_CASING, RULE_FUNCTION_BODY_LINES, RULE_FUNCTION_CASING,
-        RULE_FUNCTION_DOCSTRING, RULE_GITHUB_ACTIONS_PINNED, RULE_INDENT_TYPE, RULE_INDENT_WIDTH,
-        RULE_MAX_FUNCTION_PARAMETERS, RULE_SOURCE_FILE_HEADER_MAX, RULE_SOURCE_FILE_HEADER_MIN,
-        RULE_SOURCE_FILE_HEADER_REQUIRED, RULE_SOURCE_FILE_LINES, RULE_TYPE_CASING,
-        RULE_VARIABLE_CASING,
+        RULE_FUNCTION_DOCSTRING, RULE_GITHUB_ACTIONS_PINNED, RULE_MAX_FUNCTION_PARAMETERS,
+        RULE_SOURCE_FILE_HEADER_MAX, RULE_SOURCE_FILE_HEADER_MIN, RULE_SOURCE_FILE_HEADER_REQUIRED,
+        RULE_SOURCE_FILE_LINES, RULE_SOURCE_FORMAT, RULE_TYPE_CASING, RULE_VARIABLE_CASING,
     },
-    config::{CasingStyle, Config, FunctionDocstringPolicy, IndentType},
+    config::{CasingStyle, Config, FunctionDocstringPolicy},
 };
 
 use common::{analyze, analyze_workflow};
 
 #[test]
 fn reports_functions_with_too_many_parameters() {
-    let source = r#"
-fn accepted(value: i32) {}
+    let source = r#"fn accepted(value: i32) {}
 
 fn rejected(left: i32, right: i32) {}
 "#;
@@ -25,7 +23,7 @@ fn rejected(left: i32, right: i32) {}
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
     assert_eq!(diagnostics[0].rule_id, RULE_MAX_FUNCTION_PARAMETERS);
-    assert_eq!(diagnostics[0].line, 4);
+    assert_eq!(diagnostics[0].line, 3);
     assert_eq!(diagnostics[0].column, 4);
 }
 
@@ -41,8 +39,7 @@ fn honors_disabled_max_function_parameters() {
 
 #[test]
 fn does_not_count_method_receiver_as_parameter() {
-    let source = r#"
-struct Sample;
+    let source = r#"struct Sample;
 
 impl Sample {
     fn accepted(&self, value: i32) {}
@@ -191,55 +188,38 @@ fn documented() {}
 }
 
 #[test]
-fn reports_tabs_when_spaces_indent_required() {
+fn reports_unformatted_source() {
     let mut config = Config::default();
-    config.indent.r#type = IndentType::Spaces;
-
-    let diagnostics = analyze(config, "fn rejected() {\n\tprintln!(\"one\");\n}\n");
-
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
-    assert_eq!(diagnostics[0].rule_id, RULE_INDENT_TYPE);
-}
-
-#[test]
-fn reports_spaces_when_tabs_indent_required() {
-    let mut config = Config::default();
-    config.indent.r#type = IndentType::Tabs;
+    config.format.enabled = true;
 
     let diagnostics = analyze(config, "fn rejected() {\n  println!(\"one\");\n}\n");
 
     assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
-    assert_eq!(diagnostics[0].rule_id, RULE_INDENT_TYPE);
-}
-
-#[test]
-fn reports_indent_width_violation() {
-    let mut config = Config::default();
-    config.indent.r#type = IndentType::Spaces;
-    config.indent.width = 4;
-
-    let diagnostics = analyze(config, "fn rejected() {\n  println!(\"one\");\n}\n");
-
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
-    assert_eq!(diagnostics[0].rule_id, RULE_INDENT_WIDTH);
-}
-
-#[test]
-fn uses_rust_language_default_indentation() {
-    let diagnostics = analyze(
-        Config::default(),
-        "fn rejected() {\n\tprintln!(\"one\");\n}\n",
+    assert_eq!(diagnostics[0].rule_id, RULE_SOURCE_FORMAT);
+    assert!(
+        diagnostics[0].message.contains("rustfmt"),
+        "{diagnostics:#?}"
     );
-
-    assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
-    assert_eq!(diagnostics[0].rule_id, RULE_INDENT_TYPE);
 }
 
 #[test]
-fn ignores_raw_string_indentation() {
+fn honors_disabled_format_check() {
+    let mut config = Config::default();
+    config.format.enabled = false;
+
+    let diagnostics = analyze(config, "fn rejected() {\n  println!(\"one\");\n}\n");
+
+    assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+}
+
+#[test]
+fn accepts_rustfmt_formatted_source() {
+    let mut config = Config::default();
+    config.format.enabled = true;
+
     let diagnostics = analyze(
-        Config::default(),
-        "fn accepted() {\n    let text = r#\"\n\ttext, not indentation\n\"#;\n}\n",
+        config,
+        "fn accepted() {\n    println!(\"one\");\n}\n",
     );
 
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
@@ -248,6 +228,7 @@ fn ignores_raw_string_indentation() {
 #[test]
 fn reports_casing_diagnostics() {
     let mut config = Config::default();
+    config.format.enabled = false;
     config.casing.enabled = true;
     config.casing.functions = CasingStyle::SnakeCase;
     config.casing.variables = CasingStyle::SnakeCase;

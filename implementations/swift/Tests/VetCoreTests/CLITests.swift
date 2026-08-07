@@ -3,37 +3,33 @@ import XCTest
 @testable import VetCore
 
 final class CLITests: XCTestCase {
-    func testRunReportsDiagnostics() throws {
+    func testRunReportsFormatDiagnostics() throws {
         let directory = temporaryDirectory()
         let file = directory.appendingPathComponent("sample.swift")
-        try """
-        func rejected(_ left: Int, _ right: Int) {}
-        """.write(to: file, atomically: true, encoding: .utf8)
+        try "func rejected()  {\n  print(\"one\")\n}\n".write(to: file, atomically: true, encoding: .utf8)
 
         var stdout = ""
         var stderr = ""
         let code = CLI.run(CLIInvocation(
-            arguments: [directory.path],
+            arguments: ["--check-format", directory.path],
             stdout: { stdout += $0 },
             stderr: { stderr += $0 }
         ))
 
         XCTAssertEqual(code, 1)
-        XCTAssertTrue(stdout.contains("VET001"))
+        XCTAssertTrue(stdout.contains("VET008"), stdout)
         XCTAssertEqual(stderr, "")
     }
 
-    func testRunAllowsConfiguredParameterLimit() throws {
+    func testRunHonorsDisabledFormatCheck() throws {
         let directory = temporaryDirectory()
         let file = directory.appendingPathComponent("sample.swift")
-        try """
-        func accepted(_ left: Int, _ right: Int) {}
-        """.write(to: file, atomically: true, encoding: .utf8)
+        try "func rejected()  {\n  print(\"one\")\n}\n".write(to: file, atomically: true, encoding: .utf8)
 
         var stdout = ""
         var stderr = ""
         let code = CLI.run(CLIInvocation(
-            arguments: ["--max-function-parameters", "2", directory.path],
+            arguments: ["--check-format=false", directory.path],
             stdout: { stdout += $0 },
             stderr: { stderr += $0 }
         ))
@@ -47,9 +43,7 @@ final class CLITests: XCTestCase {
         let root = temporaryDirectory()
         let target = temporaryDirectory()
         let file = target.appendingPathComponent("sample.swift")
-        try """
-        func rejected(_ left: Int, _ right: Int) {}
-        """.write(to: file, atomically: true, encoding: .utf8)
+        try "func rejected()  {\n  print(\"one\")\n}\n".write(to: file, atomically: true, encoding: .utf8)
 
         let linkedDirectory = root.appendingPathComponent("source")
         try FileManager.default.createSymbolicLink(at: linkedDirectory, withDestinationURL: target)
@@ -68,6 +62,7 @@ final class CLITests: XCTestCase {
 
         XCTAssertEqual(code, 1)
         XCTAssertTrue(stdout.contains(linkedDirectory.path))
+        XCTAssertTrue(stdout.contains("VET008"))
         XCTAssertEqual(stderr, "")
     }
 
@@ -79,7 +74,7 @@ final class CLITests: XCTestCase {
         var stdout = ""
         var stderr = ""
         let code = CLI.run(CLIInvocation(
-            arguments: ["--require-file-header", directory.path],
+            arguments: ["--require-file-header", "--check-format=false", directory.path],
             stdout: { stdout += $0 },
             stderr: { stderr += $0 }
         ))
@@ -97,6 +92,8 @@ final class CLITests: XCTestCase {
         try """
         version: 1
         rules:
+          format:
+            enabled: false
           source-file-header:
             required: true
         """.write(to: config, atomically: true, encoding: .utf8)
@@ -128,6 +125,8 @@ final class CLITests: XCTestCase {
         try """
         version: 1
         rules:
+          format:
+            enabled: false
           source-file-header:
             required: true
         """.write(to: config, atomically: true, encoding: .utf8)
@@ -155,17 +154,21 @@ final class CLITests: XCTestCase {
         try """
         version: 1
         rules:
-          max-function-parameters:
+          format:
+            enabled: true
+          max-source-file-lines:
             max: 1
         languages:
           go:
             rules:
-              max-function-parameters:
+              max-source-file-lines:
                 max: 1
           swift:
             rules:
-              max-function-parameters:
-                max: 2
+              max-source-file-lines:
+                max: 10
+              format:
+                enabled: false
         """.write(to: config, atomically: true, encoding: .utf8)
 
         var stdout = ""
@@ -188,17 +191,27 @@ final class CLITests: XCTestCase {
 
         let included = sourceDirectory.appendingPathComponent("Included.swift")
         try """
-        func rejected(_ left: Int, _ right: Int) {}
+        let one = 1
+        let two = 2
+        let three = 3
         """.write(to: included, atomically: true, encoding: .utf8)
 
         let excluded = sourceDirectory.appendingPathComponent("IgnoredTests.swift")
         try """
-        func ignored(_ left: Int, _ right: Int) {}
+        let one = 1
+        let two = 2
+        let three = 3
+        let four = 4
         """.write(to: excluded, atomically: true, encoding: .utf8)
 
         let config = directory.appendingPathComponent("vet.yaml")
         try """
         version: 1
+        rules:
+          format:
+            enabled: false
+          max-source-file-lines:
+            max: 2
         languages:
           swift:
             files:
@@ -225,13 +238,13 @@ final class CLITests: XCTestCase {
         let directory = temporaryDirectory()
         let configured = directory.appendingPathComponent("Configured.swift")
         try """
-        func rejected(_ left: Int, _ right: Int) {}
+        func rejected()  {
+          print("one")
+        }
         """.write(to: configured, atomically: true, encoding: .utf8)
 
         let explicit = directory.appendingPathComponent("Explicit.swift")
-        try """
-        func accepted(_ value: Int) {}
-        """.write(to: explicit, atomically: true, encoding: .utf8)
+        try "func accepted(_ value: Int) {}\n".write(to: explicit, atomically: true, encoding: .utf8)
 
         let config = directory.appendingPathComponent("vet.yaml")
         try """
@@ -263,6 +276,8 @@ final class CLITests: XCTestCase {
         try """
         version: 1
         rules:
+          format:
+            enabled: false
           source-file-header:
             required: true
         """.write(to: config, atomically: true, encoding: .utf8)
@@ -309,6 +324,8 @@ final class CLITests: XCTestCase {
         try """
         version: 1
         rules:
+          format:
+            enabled: false
           source-file-header:
             min-length: 10
         """.write(to: config, atomically: true, encoding: .utf8)
@@ -334,6 +351,8 @@ final class CLITests: XCTestCase {
         try """
         version: 1
         rules:
+          format:
+            enabled: false
           source-file-header:
             required: true
         """.write(to: config, atomically: true, encoding: .utf8)
@@ -366,6 +385,8 @@ final class CLITests: XCTestCase {
         try """
         version: 1
         rules:
+          format:
+            enabled: false
           github-actions-pinned:
             enabled: true
         """.write(to: config, atomically: true, encoding: .utf8)
@@ -396,13 +417,71 @@ final class CLITests: XCTestCase {
         XCTAssertTrue(stderr.contains("use -c or --config"))
     }
 
-    func testRunReportsNewRuleDiagnostics() throws {
+    func testRunRejectsUnsupportedRuleFlags() throws {
+        let directory = temporaryDirectory()
+        let file = directory.appendingPathComponent("sample.swift")
+        try "func accepted() {}\n".write(to: file, atomically: true, encoding: .utf8)
+
+        let cases: [[String]] = [
+            ["--max-function-parameters", "2", directory.path],
+            ["--max-function-body-lines", "5", directory.path],
+            ["--function-docstring-policy", "mandatory", directory.path],
+            ["--casing", directory.path],
+            ["--function-casing", "camelCase", directory.path],
+            ["--variable-casing", "camelCase", directory.path],
+            ["--type-casing", "UpperCamelCase", directory.path],
+            ["--constant-casing", "SNAKE_CASE_FULL_CAPS", directory.path],
+        ]
+        for args in cases {
+            var stdout = ""
+            var stderr = ""
+            let code = CLI.run(CLIInvocation(
+                arguments: args,
+                stdout: { stdout += $0 },
+                stderr: { stderr += $0 }
+            ))
+            XCTAssertEqual(code, 2, "args \(args)")
+            XCTAssertTrue(stderr.contains("not supported for Swift"), "args \(args): \(stderr)")
+            XCTAssertEqual(stdout, "", "args \(args)")
+        }
+    }
+
+    func testRunWarnsOnUnsupportedRulesFromConfig() throws {
+        let directory = temporaryDirectory()
+        let file = directory.appendingPathComponent("sample.swift")
+        try "func accepted() {}\n".write(to: file, atomically: true, encoding: .utf8)
+        let config = directory.appendingPathComponent("vet.yaml")
+        try """
+        version: 1
+        rules:
+          format:
+            enabled: false
+          max-function-parameters:
+            enabled: true
+            max: 3
+        """.write(to: config, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["-c", config.path, file.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 0)
+        XCTAssertEqual(stdout, "")
+        XCTAssertTrue(stderr.contains("ignoring unsupported Swift rule settings"))
+        XCTAssertTrue(stderr.contains("max-function-parameters"))
+    }
+
+    func testRunReportsSourceFileLineLimit() throws {
         let directory = temporaryDirectory()
         let file = directory.appendingPathComponent("sample.swift")
         try """
         func missing() {
-            print("one")
-            print("two")
+          print("one")
+          print("two")
         }
         """.write(to: file, atomically: true, encoding: .utf8)
 
@@ -411,8 +490,7 @@ final class CLITests: XCTestCase {
         let code = CLI.run(CLIInvocation(
             arguments: [
                 "--max-source-file-lines", "2",
-                "--max-function-body-lines", "1",
-                "--function-docstring-policy", "mandatory",
+                "--check-format=false",
                 directory.path,
             ],
             stdout: { stdout += $0 },
@@ -423,8 +501,6 @@ final class CLITests: XCTestCase {
         let lines = stdout.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "\n")
         XCTAssertEqual(lines.count, 1)
         XCTAssertTrue(lines[0].contains("VET005"))
-        XCTAssertFalse(stdout.contains("VET006"))
-        XCTAssertFalse(stdout.contains("VET007"))
         XCTAssertEqual(stderr, "")
     }
 
@@ -432,9 +508,9 @@ final class CLITests: XCTestCase {
         let directory = temporaryDirectory()
         let file = directory.appendingPathComponent("sample.swift")
         try """
-        func missing() {
-            print("one")
-            print("two")
+        func missing()  {
+          print("one")
+          print("two")
         }
         """.write(to: file, atomically: true, encoding: .utf8)
 
@@ -444,8 +520,7 @@ final class CLITests: XCTestCase {
             arguments: [
                 "--format", "json",
                 "--max-source-file-lines", "2",
-                "--max-function-body-lines", "1",
-                "--function-docstring-policy", "mandatory",
+                "--check-format",
                 directory.path,
             ],
             stdout: { stdout += $0 },
@@ -459,8 +534,8 @@ final class CLITests: XCTestCase {
         let object = try JSONSerialization.jsonObject(with: data)
         let payload = try XCTUnwrap(object as? [String: Any])
         let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [[String: Any]])
-        let ruleIDs = diagnostics.compactMap { $0["rule_id"] as? String }
-        XCTAssertEqual(ruleIDs, ["VET005", "VET006", "VET007"])
+        let ruleIDs = Set(diagnostics.compactMap { $0["rule_id"] as? String })
+        XCTAssertEqual(ruleIDs, Set(["VET005", "VET008"]))
     }
 
     func testRunAcceptsInlineValueFlags() throws {
@@ -477,6 +552,7 @@ final class CLITests: XCTestCase {
             arguments: [
                 "--format=json",
                 "--max-source-file-lines=1",
+                "--check-format=false",
                 directory.path,
             ],
             stdout: { stdout += $0 },
@@ -492,42 +568,6 @@ final class CLITests: XCTestCase {
         let diagnostics = try XCTUnwrap(payload["diagnostics"] as? [[String: Any]])
         XCTAssertEqual(diagnostics.count, 1)
         XCTAssertEqual(diagnostics[0]["rule_id"] as? String, "VET005")
-    }
-
-    func testRunReportsIndentDiagnostics() throws {
-        let directory = temporaryDirectory()
-        let file = directory.appendingPathComponent("sample.swift")
-        try "func rejected() {\n  print(\"one\")\n}\n".write(to: file, atomically: true, encoding: .utf8)
-
-        var stdout = ""
-        var stderr = ""
-        let code = CLI.run(CLIInvocation(
-            arguments: ["--indent-type", "spaces", "--indent-width", "4", directory.path],
-            stdout: { stdout += $0 },
-            stderr: { stderr += $0 }
-        ))
-
-        XCTAssertEqual(code, 1)
-        XCTAssertTrue(stdout.contains("VET009"))
-        XCTAssertEqual(stderr, "")
-    }
-
-    func testRunReportsCasingDiagnostics() throws {
-        let directory = temporaryDirectory()
-        let file = directory.appendingPathComponent("sample.swift")
-        try "func Rejected() {}\n".write(to: file, atomically: true, encoding: .utf8)
-
-        var stdout = ""
-        var stderr = ""
-        let code = CLI.run(CLIInvocation(
-            arguments: ["--function-casing", "camelCase", directory.path],
-            stdout: { stdout += $0 },
-            stderr: { stderr += $0 }
-        ))
-
-        XCTAssertEqual(code, 1)
-        XCTAssertTrue(stdout.contains("VET010"))
-        XCTAssertEqual(stderr, "")
     }
 
     func testRunGithubActionsPinnedScansDefaultWorkflows() throws {
@@ -553,7 +593,7 @@ final class CLITests: XCTestCase {
         var stdout = ""
         var stderr = ""
         let code = CLI.run(CLIInvocation(
-            arguments: ["--github-actions-pinned"],
+            arguments: ["--github-actions-pinned", "--check-format=false"],
             stdout: { stdout += $0 },
             stderr: { stderr += $0 }
         ))
@@ -575,7 +615,7 @@ final class CLITests: XCTestCase {
         var stdout = ""
         var stderr = ""
         let code = CLI.run(CLIInvocation(
-            arguments: ["--github-actions-pinned"],
+            arguments: ["--github-actions-pinned", "--check-format=false"],
             stdout: { stdout += $0 },
             stderr: { stderr += $0 }
         ))
@@ -600,7 +640,7 @@ final class CLITests: XCTestCase {
         var stdout = ""
         var stderr = ""
         let code = CLI.run(CLIInvocation(
-            arguments: ["--github-actions-pinned", workflow.path],
+            arguments: ["--github-actions-pinned", "--check-format=false", workflow.path],
             stdout: { stdout += $0 },
             stderr: { stderr += $0 }
         ))
@@ -628,7 +668,13 @@ final class CLITests: XCTestCase {
         var stdout = ""
         var stderr = ""
         let code = CLI.run(CLIInvocation(
-            arguments: ["--format", "json", "--github-actions-pinned", second.path, first.path],
+            arguments: [
+                "--format", "json",
+                "--github-actions-pinned",
+                "--check-format=false",
+                second.path,
+                first.path,
+            ],
             stdout: { stdout += $0 },
             stderr: { stderr += $0 }
         ))

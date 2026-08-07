@@ -292,31 +292,11 @@ func documented() {}
 	}
 }
 
-func TestAnalyzeFileReportsTabsWhenSpacesIndentRequired(t *testing.T) {
+func TestAnalyzeFileReportsUnformattedSource(t *testing.T) {
 	cfg := config.Default()
-	cfg.Indent.Type = config.IndentSpaces
+	cfg.Format.Enabled = true
 
-	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
-		Path:   "sample.go",
-		Source: []byte("package sample\n\nfunc rejected() {\n\tprintln(\"one\")\n}\n"),
-	})
-	if err != nil {
-		t.Fatalf("AnalyzeFile returned error: %v", err)
-	}
-
-	if len(diagnostics) != 1 {
-		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
-	}
-
-	if diagnostics[0].RuleID != RuleIndentType {
-		t.Fatalf("expected rule %q, got %q", RuleIndentType, diagnostics[0].RuleID)
-	}
-}
-
-func TestAnalyzeFileReportsSpacesWhenTabsIndentRequired(t *testing.T) {
-	cfg := config.Default()
-	cfg.Indent.Type = config.IndentTabs
-
+	// Spaces instead of tabs: not gofmt-formatted.
 	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
 		Path:   "sample.go",
 		Source: []byte("package sample\n\nfunc rejected() {\n  println(\"one\")\n}\n"),
@@ -329,15 +309,14 @@ func TestAnalyzeFileReportsSpacesWhenTabsIndentRequired(t *testing.T) {
 		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
 	}
 
-	if diagnostics[0].RuleID != RuleIndentType {
-		t.Fatalf("expected rule %q, got %q", RuleIndentType, diagnostics[0].RuleID)
+	if diagnostics[0].RuleID != RuleSourceFormat {
+		t.Fatalf("expected rule %q, got %q", RuleSourceFormat, diagnostics[0].RuleID)
 	}
 }
 
-func TestAnalyzeFileReportsIndentWidthViolation(t *testing.T) {
+func TestAnalyzeFileHonorsDisabledFormatCheck(t *testing.T) {
 	cfg := config.Default()
-	cfg.Indent.Type = config.IndentSpaces
-	cfg.Indent.Width = 4
+	cfg.Format.Enabled = false
 
 	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
 		Path:   "sample.go",
@@ -347,19 +326,18 @@ func TestAnalyzeFileReportsIndentWidthViolation(t *testing.T) {
 		t.Fatalf("AnalyzeFile returned error: %v", err)
 	}
 
-	if len(diagnostics) != 1 {
-		t.Fatalf("expected 1 diagnostic, got %d: %#v", len(diagnostics), diagnostics)
-	}
-
-	if diagnostics[0].RuleID != RuleIndentWidth {
-		t.Fatalf("expected rule %q, got %q", RuleIndentWidth, diagnostics[0].RuleID)
+	if len(diagnostics) != 0 {
+		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
 	}
 }
 
-func TestAnalyzeFileIgnoresRawStringIndentation(t *testing.T) {
-	diagnostics, err := New(config.Default()).AnalyzeFile(AnalyzeFileRequest{
+func TestAnalyzeFileAcceptsGofmtFormattedSource(t *testing.T) {
+	cfg := config.Default()
+	cfg.Format.Enabled = true
+
+	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
 		Path:   "sample.go",
-		Source: []byte("package sample\n\nvar text = `\n  not Go indentation\n`\n"),
+		Source: []byte("package sample\n\nfunc accepted() {\n\tprintln(\"one\")\n}\n"),
 	})
 	if err != nil {
 		t.Fatalf("AnalyzeFile returned error: %v", err)
@@ -373,6 +351,7 @@ func TestAnalyzeFileIgnoresRawStringIndentation(t *testing.T) {
 func TestAnalyzeFileReportsCasingDiagnostics(t *testing.T) {
 	cfg := config.Default()
 	cfg.Casing.Enabled = true
+	cfg.Format.Enabled = false
 	cfg.Casing.Functions = config.CasingCamelCase
 	cfg.Casing.Variables = config.CasingCamelCase
 	cfg.Casing.Types = config.CasingUpperCamelCase
@@ -414,6 +393,7 @@ func Rejected() {}
 func TestAnalyzeFileAcceptsGoLanguageDefaultCasing(t *testing.T) {
 	cfg := config.Default()
 	cfg.Casing.Enabled = true
+	cfg.Format.Enabled = false
 
 	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{
 		Path: "sample.go",
@@ -444,6 +424,7 @@ func serveHTTP() {}
 func TestAnalyzeFileHonorsCasingIgnores(t *testing.T) {
 	cfg := config.Default()
 	cfg.Casing.Enabled = true
+	cfg.Format.Enabled = false
 	cfg.Casing.Functions = config.CasingCamelCase
 	cfg.Casing.IgnoreNames = []string{"ExactIgnored"}
 	cfg.Casing.IgnorePatterns = []string{"^Test[A-Z]"}
@@ -472,6 +453,7 @@ func Rejected() {}
 func TestAnalyzeFileHonorsOffCasingStyle(t *testing.T) {
 	cfg := config.Default()
 	cfg.Casing.Enabled = true
+	cfg.Format.Enabled = false
 	cfg.Casing.Functions = config.CasingOff
 
 	diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{

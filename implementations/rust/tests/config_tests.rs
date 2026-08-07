@@ -3,9 +3,7 @@ mod common;
 use std::fs;
 
 use tempfile::TempDir;
-use vet::config::{
-    self, CasingStyle, Config, FunctionDocstringPolicy, IndentType, LoadFileRequest,
-};
+use vet::config::{self, CasingStyle, Config, FunctionDocstringPolicy, LoadFileRequest};
 
 use common::path_string;
 
@@ -30,9 +28,8 @@ rules:
     max: 12
   function-docstring:
     policy: mandatory
-  indent:
-    type: spaces
-    width: 4
+  format:
+    enabled: false
   casing:
     enabled: true
     functions: camelCase
@@ -67,8 +64,7 @@ rules:
         config.function_docstring.policy,
         FunctionDocstringPolicy::Mandatory
     );
-    assert_eq!(config.indent.r#type, IndentType::Spaces);
-    assert_eq!(config.indent.width, 4);
+    assert!(!config.format.enabled);
     assert!(config.casing.enabled);
     assert_eq!(config.casing.functions, CasingStyle::CamelCase);
     assert_eq!(config.casing.variables, CasingStyle::SnakeCase);
@@ -90,9 +86,8 @@ rules:
   max-function-parameters:
     enabled: true
     max: 3
-  indent:
-    type: tabs
-    width: 0
+  format:
+    enabled: true
   casing:
     enabled: false
     functions: language-default
@@ -112,9 +107,8 @@ languages:
     rules:
       max-function-parameters:
         max: 5
-      indent:
-        type: spaces
-        width: 4
+      format:
+        enabled: false
 "#,
     )
     .unwrap();
@@ -129,8 +123,7 @@ languages:
     assert_eq!(config.max_function_parameters.max, 5);
     assert_eq!(config.file_selection.files, vec!["src/*.rs"]);
     assert_eq!(config.file_selection.exclude, vec!["**/*_test.rs"]);
-    assert_eq!(config.indent.r#type, IndentType::Spaces);
-    assert_eq!(config.indent.width, 4);
+    assert!(!config.format.enabled);
     assert!(!config.casing.enabled);
     assert_eq!(config.casing.functions, CasingStyle::LanguageDefault);
 }
@@ -236,15 +229,15 @@ rules:
 }
 
 #[test]
-fn load_file_rejects_invalid_indent_type() {
+fn load_file_rejects_unknown_format_fields() {
     let dir = TempDir::new().unwrap();
     let path = dir.path().join("vet.yaml");
     fs::write(
         &path,
         r#"version: 1
 rules:
-  indent:
-    type: mixed
+  format:
+    style: weird
 "#,
     )
     .unwrap();
@@ -253,11 +246,11 @@ rules:
 }
 
 #[test]
-fn validate_rejects_invalid_indent_width() {
+fn validate_accepts_format_config() {
     let mut config = Config::default();
-    config.indent.width = -1;
+    config.format.enabled = false;
 
-    assert!(config::validate(&config).is_err());
+    assert!(config::validate(&config).is_ok());
 }
 
 #[test]

@@ -1,0 +1,1 @@
+spec/conformance/source-format/cpp/invalid.c:1:1: VET008: file is not clang-format-formatted

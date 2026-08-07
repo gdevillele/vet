@@ -20,7 +20,7 @@ same CLI/config behavior for Rust source files.
 
 Rust language defaults:
 
-- indentation uses spaces;
+- source format is checked with `rustfmt` (edition 2021; formatted output must match input; VET008; requires `rustfmt` on `PATH`);
 - functions and variables use `snake_case`;
 - types use `UpperCamelCase`;
 - constants use `SNAKE_CASE_FULL_CAPS`.
