@@ -13,6 +13,7 @@ export type CasingStyle =
   | "SNAKE_CASE_FULL_CAPS";
 
 export interface Config {
+  noComments: { enabled: boolean };
   maxFunctionParameters: { enabled: boolean; max: number };
   sourceFileHeader: { required: boolean; minLength: number; maxLength: number };
   sourceFileLines: { max: number };
@@ -43,6 +44,7 @@ export function defaultConfig(): Config {
       minLength: 0,
       maxLength: 0,
     },
+    noComments: { enabled: false },
     sourceFileLines: { max: 0 },
     functionBodyLines: { max: 0 },
     functionDocstring: { policy: "optional" },
@@ -62,6 +64,7 @@ export function defaultConfig(): Config {
 }
 
 interface RulesFile {
+  "no-comments"?: { enabled?: boolean };
   "max-function-parameters"?: { enabled?: boolean; max?: number };
   "source-file-header"?: {
     required?: boolean;
@@ -108,6 +111,10 @@ function applyRules(cfg: Config, rules: RulesFile | undefined): Config {
       result.maxFunctionParameters.max = maxParams.max;
     }
   }
+
+  const comments = rules["no-comments"];
+  if (comments?.enabled !== undefined)
+    result.noComments.enabled = comments.enabled;
 
   const header = rules["source-file-header"];
   if (header) {
@@ -168,6 +175,9 @@ function applyRules(cfg: Config, rules: RulesFile | undefined): Config {
 }
 
 export function validate(cfg: Config): void {
+  if (typeof cfg.noComments.enabled !== "boolean") {
+    throw new Error("no-comments.enabled must be a boolean");
+  }
   if (cfg.maxFunctionParameters.max < 0) {
     throw new Error("max-function-parameters.max must be zero or greater");
   }

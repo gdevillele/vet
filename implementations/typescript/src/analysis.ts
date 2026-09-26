@@ -14,6 +14,7 @@ export const RULE_FUNCTION_CASING = "VET010";
 export const RULE_VARIABLE_CASING = "VET011";
 export const RULE_TYPE_CASING = "VET012";
 export const RULE_CONSTANT_CASING = "VET013";
+export const RULE_NO_COMMENTS = "VET015";
 
 export class Analyzer {
   constructor(
@@ -48,10 +49,58 @@ export class Analyzer {
       kind,
     );
 
+    diagnostics.push(...this.checkComments(sourceFile, options.path));
     diagnostics.push(...this.checkCasing(sourceFile, options.path));
     this.visitFunctions(sourceFile, options.path, diagnostics);
 
     return diagnostics;
+  }
+
+  private checkComments(sourceFile: ts.SourceFile, path: string): Diagnostic[] {
+    const rule = this.config.noComments;
+    if (!rule.enabled) return [];
+    const source = sourceFile.text;
+    const header = findSourceFileHeader(source);
+    const comments = new Map<number, ts.CommentRange>();
+    // AST token boundaries keep regex, template, and JSX text out of trivia scans.
+    const visit = (node: ts.Node): void => {
+      if (ts.isJSDoc(node) || node.kind === ts.SyntaxKind.JsxText) return;
+      const children = node.getChildren(sourceFile);
+      if (children.length) {
+        children.forEach(visit);
+        return;
+      }
+      const end = node.getStart(sourceFile);
+      const ranges = [
+        ...(ts.getLeadingCommentRanges(source, node.getFullStart()) ?? []),
+        ...(ts.getTrailingCommentRanges(source, node.getFullStart()) ?? []),
+      ];
+      for (const comment of ranges) {
+        if (comment.end <= end) comments.set(comment.pos, comment);
+      }
+    };
+    visit(sourceFile);
+    return [...comments.values()]
+      .filter(
+        (comment) =>
+          !(
+            this.config.sourceFileHeader.required &&
+            header.present &&
+            comment.pos >= header.offset &&
+            comment.end <= header.firstCodeOffset
+          ),
+      )
+      .sort((a, b) => a.pos - b.pos)
+      .map((comment) => {
+        const { line, column } = offsetToLineColumn(source, comment.pos);
+        return diagnostic(
+          RULE_NO_COMMENTS,
+          "comment is not allowed",
+          path,
+          line,
+          column,
+        );
+      });
   }
 
   private checkSourceFileLines(path: string, source: string): Diagnostic[] {

@@ -13,6 +13,8 @@ rules:
     max: 20
   function-docstring:
     policy: optional
+  no-comments:
+    enabled: false
   format:
     enabled: true
   casing:

@@ -12,6 +12,7 @@ import (
 const DefaultMaxFunctionParameters = 1
 
 type Config struct {
+	NoComments            NoCommentsRule
 	MaxFunctionParameters MaxFunctionParametersRule
 	SourceFileHeader      SourceFileHeaderRule
 	SourceFileLines       SourceFileLinesRule
@@ -26,6 +27,10 @@ type Config struct {
 type MaxFunctionParametersRule struct {
 	Enabled bool
 	Max     int
+}
+
+type NoCommentsRule struct {
+	Enabled bool
 }
 
 type SourceFileHeaderRule struct {
@@ -107,6 +112,7 @@ type languageFile struct {
 }
 
 type rulesFile struct {
+	NoComments            *noCommentsFile            `yaml:"no-comments"`
 	MaxFunctionParameters *maxFunctionParametersFile `yaml:"max-function-parameters"`
 	SourceFileHeader      *sourceFileHeaderFile      `yaml:"source-file-header"`
 	SourceFileLines       *sourceFileLinesFile       `yaml:"max-source-file-lines"`
@@ -120,6 +126,10 @@ type rulesFile struct {
 type maxFunctionParametersFile struct {
 	Enabled *bool `yaml:"enabled"`
 	Max     *int  `yaml:"max"`
+}
+
+type noCommentsFile struct {
+	Enabled *bool `yaml:"enabled"`
 }
 
 type sourceFileHeaderFile struct {
@@ -231,6 +241,11 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 
 func applyRules(cfg Config, rules rulesFile) Config {
 	result := cfg
+	if rule := rules.NoComments; rule != nil {
+		if rule.Enabled != nil {
+			result.NoComments.Enabled = *rule.Enabled
+		}
+	}
 	if rules.MaxFunctionParameters != nil {
 		rule := rules.MaxFunctionParameters
 		if rule.Enabled != nil {

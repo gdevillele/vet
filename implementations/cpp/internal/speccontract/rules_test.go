@@ -106,6 +106,7 @@ func TestCppImplementedRulesMatchRunner(t *testing.T) {
 		"VET005": true,
 		"VET008": true,
 		"VET014": true,
+		"VET015": true,
 	}
 	// Language-aware rules are intentionally not scheduled for the Go-hosted
 	// line-based C/C++ runner (no roadmap "planned" promise).

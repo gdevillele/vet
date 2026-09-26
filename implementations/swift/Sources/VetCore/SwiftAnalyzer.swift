@@ -14,6 +14,7 @@ public enum RuleID {
     public static let typeCasing = "VET012"
     public static let constantCasing = "VET013"
     public static let githubActionsPinned = "VET014"
+    public static let noComments = "VET015"
 }
 
 public struct AnalyzeFileRequest {
@@ -60,6 +61,7 @@ public struct SwiftAnalyzer {
             source: request.source,
             rule: config.sourceFileHeader
         )))
+        diagnostics.append(contentsOf: CommentAnalyzer.analyze(request, config: config))
         return diagnostics
     }
 }

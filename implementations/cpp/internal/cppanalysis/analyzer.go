@@ -58,6 +58,11 @@ func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) ([]diagnostic.Diagnost
 	}
 	diagnostics = append(diagnostics, formatDiagnostics...)
 	diagnostics = append(diagnostics, a.checkFileHeader(request.Path, source)...)
+	comments, err := a.checkComments(request)
+	if err != nil {
+		return nil, err
+	}
+	diagnostics = append(diagnostics, comments...)
 	return diagnostics, nil
 }
 

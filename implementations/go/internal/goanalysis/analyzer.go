@@ -26,6 +26,7 @@ const (
 	RuleVariableCasing           = "VET011"
 	RuleTypeCasing               = "VET012"
 	RuleConstantCasing           = "VET013"
+	RuleNoComments               = "VET015"
 )
 
 type Analyzer struct {
@@ -73,6 +74,7 @@ type sourceFileHeader struct {
 	Present bool
 	Text    string
 	Pos     token.Pos
+	End     token.Pos
 }
 
 func New(cfg config.Config) Analyzer {
@@ -87,6 +89,7 @@ func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) ([]diagnostic.Diagnost
 	}
 
 	var diagnostics []diagnostic.Diagnostic
+	diagnostics = append(diagnostics, a.checkComments(fileHeaderCheck{FileSet: fileSet, File: file, Path: request.Path})...)
 	diagnostics = append(diagnostics, a.checkSourceFileLines(sourceLineCheck{
 		Path:   request.Path,
 		Source: request.Source,
@@ -385,6 +388,7 @@ func findSourceFileHeader(file *ast.File) sourceFileHeader {
 			Present: true,
 			Text:    text,
 			Pos:     group.Pos(),
+			End:     group.End(),
 		}
 	}
 

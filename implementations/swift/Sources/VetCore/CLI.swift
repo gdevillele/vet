@@ -36,6 +36,7 @@ struct CLIOptions {
     var variableCasing: CasingStyle?
     var typeCasing: CasingStyle?
     var constantCasing: CasingStyle?
+    var noComments: Bool?
     var githubActionsPinned: Bool?
     var version = false
     var paths: [String] = []
@@ -317,6 +318,8 @@ public enum CLI {
                     options.constantCasing = try casingStyle(parsed.value, flag: flag)
                     options.visited.insert("constant-casing")
                     cursor += parsed.consumed
+                case "--no-comments", "-no-comments":
+                    options.noComments = try optionalBool(inlineValue, flag: flag)
                 case "--github-actions-pinned", "-github-actions-pinned":
                     options.githubActionsPinned = try optionalBool(inlineValue, flag: flag)
                     options.visited.insert("github-actions-pinned")
@@ -423,6 +426,9 @@ public enum CLI {
         }
         if let enabled = request.options.checkFormat {
             config.format.enabled = enabled
+        }
+        if let enabled = request.options.noComments {
+            config.noComments.enabled = enabled
         }
         if let enabled = request.options.githubActionsPinned {
             config.githubActionsPinned.enabled = enabled

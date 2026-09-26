@@ -368,3 +368,38 @@ rules:
       - Local actions beginning ./ and Docker actions beginning docker:// are ignored.
       - Valid external action pins use exactly 40 hexadecimal characters after @.
       - Job-level reusable workflow calls are ignored.
+  VET015:
+    name: no-comments
+    default_severity: error
+    default_config:
+      enabled: false
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: implemented
+      swift:
+        status: compatible
+        implementation: implemented
+      cpp:
+        status: compatible
+        implementation: implemented
+      typescript:
+        status: compatible
+        implementation: implemented
+    summary: Source comments are forbidden when enabled, with an implicit exception for required file headers.
+    notes:
+      - Configured with rules.no-comments.enabled, including language overrides.
+      - CLI flag --no-comments overrides rules.no-comments.enabled and accepts =false.
+      - Emits one VET015 diagnostic per comment token at its opening delimiter, with message "comment is not allowed".
+      - When source-file-header.required is true, only the header group recognized by VET002 through VET004 is implicitly allowed; header presence and length checks still apply.
+      - When source-file-header.required is false (the default), all comments are forbidden, including file headers.
+      - Empty comments, documentation comments, and tool/compiler directive comments are included; there is no implicit directive exemption.
+      - Comments inside the exempt header group are allowed, including directives in that group. Separately skipped directive or generated-marker groups are not exempt.
+      - Shebangs and comment-like text in literals are not comments. Comments inside interpolated expressions are checked.
+      - Function docstring policy is independent; keep it optional when forbidding comments to avoid conflicting requirements.
+      - Uses Go parser comments, TypeScript compiler token trivia, the Rust compiler lexer, SwiftSyntax trivia, and Clang raw tokens.
+      - C/C++ requires clang only when enabled, needs no build configuration or include dependencies, and scans inactive preprocessor branches too. Missing or failing clang is an error.
+      - Existing file discovery and exclusions apply unchanged.

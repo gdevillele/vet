@@ -70,6 +70,7 @@ function parseArgs(args: string[]): {
             name === "check-format" ||
             name === "casing" ||
             name === "require-file-header" ||
+            name === "no-comments" ||
             name === "github-actions-pinned" ||
             name === "version"
           ) {
@@ -102,6 +103,7 @@ function parseArgs(args: string[]): {
           !next.startsWith("-") &&
           name !== "casing" &&
           name !== "require-file-header" &&
+          name !== "no-comments" &&
           name !== "github-actions-pinned" &&
           name !== "version"
         ) {
@@ -266,6 +268,9 @@ export async function run(invocation: Invocation): Promise<number> {
     if (visited.has("constant-casing")) {
       cfg.casing.enabled = true;
       cfg.casing.constants = String(flags["constant-casing"]) as CasingStyle;
+    }
+    if (visited.has("no-comments")) {
+      cfg.noComments.enabled = asBool(flags["no-comments"], "--no-comments");
     }
     if (visited.has("github-actions-pinned")) {
       cfg.githubActionsPinned.enabled = asBool(

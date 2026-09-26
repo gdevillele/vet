@@ -29,6 +29,7 @@ pub const RULE_VARIABLE_CASING: &str = "VET011";
 pub const RULE_TYPE_CASING: &str = "VET012";
 pub const RULE_CONSTANT_CASING: &str = "VET013";
 pub const RULE_GITHUB_ACTIONS_PINNED: &str = "VET014";
+pub const RULE_NO_COMMENTS: &str = "VET015";
 
 #[derive(Debug)]
 pub enum AnalyzeError {
@@ -97,6 +98,7 @@ impl Analyzer {
         diagnostics.extend(self.check_source_file_lines(&request.path, &request.source));
         diagnostics.extend(self.check_format(&request.path, &request.source)?);
         diagnostics.extend(self.check_file_header(&request.path, &request.source));
+        diagnostics.extend(self.check_comments(&request.path, &request.source));
 
         let mut visitor = RustVisitor {
             analyzer: self,
@@ -124,6 +126,38 @@ impl Analyzer {
         }
 
         Ok(diagnostics)
+    }
+
+    fn check_comments(&self, path: &str, source: &str) -> Vec<Diagnostic> {
+        let rule = &self.config.no_comments;
+        if !rule.enabled {
+            return Vec::new();
+        }
+        let header = find_source_file_header(source);
+        let mut offset = source.len() - source.trim_start_matches('\u{feff}').len();
+        offset += rustc_lexer::strip_shebang(&source[offset..]).unwrap_or(0);
+        let mut diagnostics = Vec::new();
+        for token in rustc_lexer::tokenize(&source[offset..], rustc_lexer::FrontmatterAllowed::No) {
+            if matches!(
+                token.kind,
+                rustc_lexer::TokenKind::LineComment { .. }
+                    | rustc_lexer::TokenKind::BlockComment { .. }
+            ) && !(self.config.source_file_header.required
+                && header.present
+                && offset >= header.offset
+                && offset < header.first_code_offset)
+            {
+                diagnostics.push(diagnostic_at_offset(
+                    RULE_NO_COMMENTS,
+                    "comment is not allowed",
+                    path,
+                    source,
+                    offset,
+                ));
+            }
+            offset += token.len as usize;
+        }
+        diagnostics
     }
 
     fn check_source_file_lines(&self, path: &str, source: &str) -> Vec<Diagnostic> {

@@ -31,10 +31,11 @@ Languages: Go, Rust, Swift, TypeScript, C/C++ (`cpp`).
 | **VET012** | `type-casing` | **keep** custom | Go, Rust, TypeScript implemented; Swift + cpp **unimplemented** | Same as VET010. |
 | **VET013** | `constant-casing` | **keep** custom | Go, Rust, TypeScript implemented; Swift + cpp **unimplemented** | Same as VET010. |
 | **VET014** | `github-actions-pinned` | **keep** custom | Go, Rust, Swift, TypeScript, cpp | Simple, security-relevant pin check on `jobs.*.steps[].uses`. Not a formatter concern; YAML-based check is adequate. Full actionlint suites are out of scope. |
+| **VET015** | `no-comments` | **keep** custom policy on native tokens | Go, Rust, Swift, TypeScript, cpp | Simple optional comment ban with an implicit exception for required file headers. Uses Go/TypeScript parser APIs, the Rust compiler lexer, SwiftSyntax trivia, and Clang raw tokens; no custom source lexer. |
 
 ## Summary counts
 
-- **Keep custom:** VET001–VET007, VET010–VET014 (language support as above).
+- **Keep custom:** VET001–VET007, VET010–VET015 (language support as above).
 - **Replace with standard tools:** VET008 (`source-format`).
 - **Remove:** VET009 (`indent-width`).
 
@@ -47,6 +48,7 @@ rules:
   max-source-file-lines: { max: 0 }
   max-function-body-lines: { max: 0 }
   function-docstring: { policy: optional }
+  no-comments: { enabled: false }
   format: { enabled: true }          # was indent: { type, width }
   casing: { enabled: false, ... }
   github-actions-pinned: { enabled: false }
@@ -57,7 +59,7 @@ Added: `format.enabled` and CLI `--check-format`.
 
 ## Swift subset note
 
-Without SwiftSyntax, structural rules (parameters, body lines, docstrings, casing)
-cannot be enforced dependably. The Swift runner matches the C/C++ subset pattern
-for those rules: `implementation: unimplemented`, no silent pass when the user
+SwiftSyntax is used for comment tokenization. Structural rules (parameters,
+body lines, docstrings, casing) have not been implemented on that parser. The
+Swift runner still matches the C/C++ subset pattern for those rules: `implementation: unimplemented`, no silent pass when the user
 explicitly requests them on the CLI.
