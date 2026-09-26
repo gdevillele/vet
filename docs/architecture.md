@@ -35,14 +35,15 @@ integration for that ecosystem:
 
 - Go: `go/parser`, `go/ast`, and later `go/packages`; formatting via `go/format`
   (gofmt semantics);
-- Swift: line/comment analysis for headers and file length; formatting via
-  `swift-format`. Structural rules (parameters, body lines, docstrings, casing)
-  are unimplemented without a dependable SwiftSyntax-based analyzer;
-- Rust: `syn` for structural rules; formatting via `rustfmt`;
+- Swift: line/comment analysis for headers and file length; SwiftParser/SwiftSyntax
+  trivia for comment prohibition; formatting via `swift-format`. Structural rules
+  (parameters, body lines, docstrings, casing) remain unimplemented;
+- Rust: `syn` for structural rules, the compiler lexer (`ra-ap-rustc_lexer`) for
+  comments; formatting via `rustfmt`;
 - TypeScript: TypeScript compiler API for structural rules; formatting via
   Prettier (`prettier.format`);
 - C/C++: comment/line analysis for headers and file length; formatting via
-  `clang-format`. Function-shape and casing rules are not supported for C/C++.
+  `clang-format`; Clang raw tokens for comment prohibition. Function-shape and casing rules are not supported for C/C++.
 
 ### Why the C/C++ Runner Is Not Written in C/C++
 
@@ -101,7 +102,7 @@ All remaining rules are compatible with Go, Rust, Swift, TypeScript, and C/C++
   TypeScript compiler API), plus headers, file length, format, and GitHub
   Actions pinning.
 - **Swift and C/C++** are **subset** runners: headers, file length, standard
-  formatters (`swift-format` / `clang-format`), and GitHub Actions pinning.
+  formatters (`swift-format` / `clang-format`), comment prohibition, and GitHub Actions pinning.
   Function-shape and casing rules are `implementation: unimplemented` (not a
   roadmap promise). See [rule-review.md](rule-review.md).
 
@@ -177,3 +178,12 @@ It scans workflow files under `.github/workflows/*.yml` and
 hexadecimal commit SHA after `@`. Local `./...` actions, Docker `docker://...`
 actions, and job-level reusable workflow calls are outside the first-version
 scope.
+
+`VET015` forbids source comments when `no-comments.enabled` is true. The default
+`allow-header: true` exempts the existing VET002–VET004 header group; set it to
+false for a complete ban. Detection uses native comment tokens/trivia rather
+than scanning source text for delimiter patterns. All comment kinds, including
+directives and documentation, are checked. C/C++ delegates to
+`clang -fsyntax-only -Xclang -dump-raw-tokens` on the supplied source, without
+preprocessing includes or dropping inactive branches; missing/failing Clang is
+an error only when this rule is enabled.

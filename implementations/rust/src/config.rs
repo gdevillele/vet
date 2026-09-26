@@ -6,6 +6,7 @@ pub const DEFAULT_MAX_FUNCTION_PARAMETERS: i32 = 1;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Config {
+    pub no_comments: NoCommentsRule,
     pub max_function_parameters: MaxFunctionParametersRule,
     pub source_file_header: SourceFileHeaderRule,
     pub source_file_lines: SourceFileLinesRule,
@@ -21,6 +22,12 @@ pub struct Config {
 pub struct MaxFunctionParametersRule {
     pub enabled: bool,
     pub max: i32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NoCommentsRule {
+    pub enabled: bool,
+    pub allow_header: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -156,6 +163,8 @@ struct LanguageFile {
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RulesFile {
+    #[serde(rename = "no-comments")]
+    no_comments: Option<NoCommentsFile>,
     #[serde(rename = "max-function-parameters")]
     max_function_parameters: Option<MaxFunctionParametersFile>,
     #[serde(rename = "source-file-header")]
@@ -177,6 +186,14 @@ struct RulesFile {
 struct MaxFunctionParametersFile {
     enabled: Option<bool>,
     max: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NoCommentsFile {
+    enabled: Option<bool>,
+    #[serde(rename = "allow-header")]
+    allow_header: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -250,6 +267,10 @@ impl Default for Config {
             function_docstring: FunctionDocstringRule {
                 policy: FunctionDocstringPolicy::Optional,
             },
+            no_comments: NoCommentsRule {
+                enabled: false,
+                allow_header: true,
+            },
             format: FormatRule { enabled: true },
             casing: CasingRule {
                 enabled: false,
@@ -297,6 +318,14 @@ pub fn load_file(request: LoadFileRequest) -> Result<Config, ConfigError> {
 }
 
 fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
+    if let Some(rule) = &rules.no_comments {
+        if let Some(enabled) = rule.enabled {
+            config.no_comments.enabled = enabled;
+        }
+        if let Some(allow_header) = rule.allow_header {
+            config.no_comments.allow_header = allow_header;
+        }
+    }
     if let Some(rule) = &rules.max_function_parameters {
         if let Some(enabled) = rule.enabled {
             config.max_function_parameters.enabled = enabled;

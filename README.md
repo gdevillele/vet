@@ -69,7 +69,7 @@ The default enabled structural rule for the Go, Rust, and TypeScript runners is
 (`VET008`) is enabled by default and delegates to industry tools: `go/format`
 (gofmt), `rustfmt`, `swift-format`, Prettier (TypeScript), and `clang-format`.
 The Swift and C/C++ runners are **subset** runners: headers, file length,
-standard format checks, and GitHub Actions pinning only. Function-shape and
+comment prohibition, standard format checks, and GitHub Actions pinning only. Function-shape and
 casing rules are not supported on those runners (explicit CLI flags error with
 “not supported”).
 
@@ -90,6 +90,39 @@ go run ./implementations/go/cmd/vet \
 corresponding length bound. Length bounds apply to files that have headers;
 combine them with `-require-file-header` to make missing headers fail too.
 
+To require a file header and forbid all other comments in any supported language:
+
+```yaml
+version: 1
+rules:
+  source-file-header:
+    required: true
+  no-comments:
+    enabled: true
+    allow-header: true
+```
+
+`no-comments` (`VET015`) is disabled by default. Set `allow-header: false` to
+forbid **every** comment, including headers. The header exception uses the same
+header group as `source-file-header`; header presence and length checks still
+apply independently. Both settings support `languages.<language>.rules`
+overrides and CLI overrides: `--no-comments[=false]` and
+`--allow-header-comments[=false]` (the latter defaults to true).
+
+Line comments, block comments, documentation comments, empty comments, and
+compiler/linter directives all count. There are no automatic exceptions for
+build tags, suppression comments, generated markers, or Swift tools-version
+comments outside the allowed header group. Shebangs and comment-like text in
+strings, regular expressions, and raw literals do not count. Keep
+`function-docstring.policy: optional` when using this rule to avoid requiring
+comments that it forbids. Existing file selection and exclusions still apply.
+
+Comment detection uses native parser/lexer APIs. The C/C++ runner requires
+`clang` in PATH when this rule is enabled; it uses raw tokenization, so project
+headers and a compilation database are unnecessary and inactive preprocessor
+branches are checked. Missing or failing Clang produces an error. The Swift
+runner uses SwiftParser/SwiftSyntax, resolved automatically by SwiftPM.
+
 Projects can put rule settings in a YAML config file:
 
 ```yaml
@@ -108,6 +141,9 @@ rules:
     max: 20
   function-docstring:
     policy: optional
+  no-comments:
+    enabled: false
+    allow-header: true
   format:
     enabled: true
   casing:
@@ -228,7 +264,7 @@ That means:
 The shared rule spec records both compatibility and implementation status for
 Go, Rust, Swift, TypeScript, and C/C++ (`cpp`). Go, Rust, and TypeScript
 implement the full structural rule set. Swift and C/C++ implement the safe
-subset (headers, file length, standard format orchestration, GitHub Actions
+subset (headers, comment prohibition, file length, standard format orchestration, GitHub Actions
 pinning); function-shape and casing rules are `unimplemented` for those
 runners, not scheduled as future work.
 

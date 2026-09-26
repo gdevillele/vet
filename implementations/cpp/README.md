@@ -43,6 +43,7 @@ go test ./...
 | VET005 | max-source-file-lines        | implemented |
 | VET008 | source-format                | implemented |
 | VET014 | github-actions-pinned        | implemented |
+| VET015 | no-comments                  | implemented |
 
 Function-shape and casing rules (`VET001`, `VET006`, `VET007`, `VET010`–`VET013`)
 are **not supported** for C/C++ and are **disabled by default**. The shared
@@ -81,3 +82,16 @@ rules:
 
 The runner consumes the shared rule contract in `../../spec` and emits the same
 diagnostic shape as the other implementations.
+
+## Comment prohibition (VET015)
+
+Use `rules.no-comments: { enabled: true, allow-header: true }` to forbid
+comments outside the existing file header, or set `allow-header: false` for a
+complete ban. Pair with `source-file-header.required: true` to require the
+header. CLI overrides are `--no-comments[=false]` and
+`--allow-header-comments[=false]`.
+
+This opt-in rule requires `clang` in PATH, in addition to `clang-format` if
+format checking is enabled. It uses Clang's raw lexer on the supplied source,
+so unavailable project includes and inactive preprocessor branches are handled
+without a compilation database. Missing/failing Clang returns an error.

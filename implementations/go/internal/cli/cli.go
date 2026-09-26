@@ -92,6 +92,8 @@ func Run(invocation Invocation) int {
 	typeCasing := flags.String("type-casing", string(config.CasingLanguageDefault), "type casing style")
 	constantCasing := flags.String("constant-casing", string(config.CasingLanguageDefault), "constant casing style")
 	githubActionsPinned := flags.Bool("github-actions-pinned", false, "require GitHub workflow step actions to use full-length commit SHA pins")
+	noComments := flags.Bool("no-comments", false, "forbid source comments (VET015)")
+	allowHeaderComments := flags.Bool("allow-header-comments", true, "allow the file header when no-comments is enabled")
 	version := flags.Bool("version", false, "print version")
 
 	if err := flags.Parse(invocation.Args); err != nil {
@@ -178,6 +180,12 @@ func Run(invocation Invocation) int {
 	if visited["constant-casing"] {
 		cfg.Casing.Enabled = true
 		cfg.Casing.Constants = config.CasingStyle(*constantCasing)
+	}
+	if visited["no-comments"] {
+		cfg.NoComments.Enabled = *noComments
+	}
+	if visited["allow-header-comments"] {
+		cfg.NoComments.AllowHeader = *allowHeaderComments
 	}
 	if visited["github-actions-pinned"] {
 		cfg.GithubActionsPinned.Enabled = *githubActionsPinned

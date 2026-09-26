@@ -25,11 +25,12 @@ swift run vet -c ../../spec/config/v1.example.yaml path/to/project
 | VET005 | max-source-file-lines        | implemented   |
 | VET008 | source-format                | implemented   |
 | VET014 | github-actions-pinned        | implemented   |
+| VET015 | no-comments                  | implemented   |
 
 ## Unimplemented structural rules
 
-These rules are **not supported** for Swift (no dependable structural parser /
-SwiftSyntax dependency) and are **disabled by default**. The shared YAML schema
+These rules are **not supported** for Swift and are **disabled by default**.
+SwiftParser/SwiftSyntax is currently used only for comment detection. The shared YAML schema
 still accepts their keys for multi-language configs. Explicit CLI flags for them
 exit with an error (`not supported for Swift`). Non-default values from a config
 file produce a warning and are not enforced:
@@ -70,3 +71,13 @@ a clear error (it does not silently skip format checks when enabled).
 - Indentation-only rules (`indent.type` / `indent.width` / VET009) are removed
   from the product; use `format.enabled` instead.
 - Header and line-count rules use simple, robust scanning without a full AST.
+
+## Comment prohibition (VET015)
+
+Use `rules.no-comments: { enabled: true, allow-header: true }` to forbid
+comments outside the existing file header, or set `allow-header: false` for a
+complete ban. Pair with `source-file-header.required: true` to require the
+header. CLI overrides are `--no-comments[=false]` and
+`--allow-header-comments[=false]`. SwiftPM resolves SwiftParser/SwiftSyntax;
+comment detection handles nested comments, raw strings, regex literals, and
+comments inside string interpolations.

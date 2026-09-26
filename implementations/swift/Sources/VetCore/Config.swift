@@ -3,6 +3,7 @@ import Yams
 
 public struct VetConfig: Equatable {
     public var maxFunctionParameters: MaxFunctionParametersRule
+    public var noComments: NoCommentsRule
     public var sourceFileHeader: SourceFileHeaderRule
     public var sourceFileLines: SourceFileLinesRule
     public var functionBodyLines: FunctionBodyLinesRule
@@ -17,6 +18,7 @@ public struct VetConfig: Equatable {
             // VET001 is unimplemented for Swift; keep it disabled so a zero-flag
             // run does not appear to enforce a rule the analyzer never consults.
             maxFunctionParameters: MaxFunctionParametersRule(enabled: false, max: 1),
+            noComments: NoCommentsRule(enabled: false, allowHeader: true),
             sourceFileHeader: SourceFileHeaderRule(required: false, minLength: 0, maxLength: 0),
             sourceFileLines: SourceFileLinesRule(max: 0),
             functionBodyLines: FunctionBodyLinesRule(max: 0),
@@ -40,6 +42,11 @@ public struct VetConfig: Equatable {
 public struct MaxFunctionParametersRule: Equatable {
     public var enabled: Bool
     public var max: Int
+}
+
+public struct NoCommentsRule: Equatable {
+    public var enabled: Bool
+    public var allowHeader: Bool
 }
 
 public struct SourceFileHeaderRule: Equatable {
@@ -152,6 +159,7 @@ struct LanguageFile: Decodable {
 
 struct RulesFile: Decodable {
     let maxFunctionParameters: MaxFunctionParametersFile?
+    let noComments: NoCommentsFile?
     let sourceFileHeader: SourceFileHeaderFile?
     let sourceFileLines: SourceFileLinesFile?
     let functionBodyLines: FunctionBodyLinesFile?
@@ -162,6 +170,7 @@ struct RulesFile: Decodable {
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case maxFunctionParameters = "max-function-parameters"
+        case noComments = "no-comments"
         case sourceFileHeader = "source-file-header"
         case sourceFileLines = "max-source-file-lines"
         case functionBodyLines = "max-function-body-lines"
@@ -175,6 +184,7 @@ struct RulesFile: Decodable {
         try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
         let container = try decoder.container(keyedBy: CodingKeys.self)
         maxFunctionParameters = try container.decodeIfPresent(MaxFunctionParametersFile.self, forKey: .maxFunctionParameters)
+        noComments = try container.decodeIfPresent(NoCommentsFile.self, forKey: .noComments)
         sourceFileHeader = try container.decodeIfPresent(SourceFileHeaderFile.self, forKey: .sourceFileHeader)
         sourceFileLines = try container.decodeIfPresent(SourceFileLinesFile.self, forKey: .sourceFileLines)
         functionBodyLines = try container.decodeIfPresent(FunctionBodyLinesFile.self, forKey: .functionBodyLines)
@@ -199,6 +209,23 @@ struct MaxFunctionParametersFile: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
         max = try container.decodeIfPresent(Int.self, forKey: .max)
+    }
+}
+
+struct NoCommentsFile: Decodable {
+    let enabled: Bool?
+    let allowHeader: Bool?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case enabled
+        case allowHeader = "allow-header"
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        allowHeader = try container.decodeIfPresent(Bool.self, forKey: .allowHeader)
     }
 }
 
@@ -496,6 +523,15 @@ public enum ConfigLoader {
             }
             if let ignorePatterns = rule.ignorePatterns {
                 result.casing.ignorePatterns = ignorePatterns
+            }
+        }
+
+        if let rule = rules.noComments {
+            if let enabled = rule.enabled {
+                result.noComments.enabled = enabled
+            }
+            if let allowHeader = rule.allowHeader {
+                result.noComments.allowHeader = allowHeader
             }
         }
 

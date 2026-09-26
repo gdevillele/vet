@@ -13,6 +13,9 @@ rules:
     max: 20
   function-docstring:
     policy: optional
+  no-comments:
+    enabled: false
+    allow-header: true
   format:
     enabled: true
   casing:
