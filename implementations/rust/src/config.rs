@@ -27,7 +27,6 @@ pub struct MaxFunctionParametersRule {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NoCommentsRule {
     pub enabled: bool,
-    pub allow_header: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -192,8 +191,6 @@ struct MaxFunctionParametersFile {
 #[serde(deny_unknown_fields)]
 struct NoCommentsFile {
     enabled: Option<bool>,
-    #[serde(rename = "allow-header")]
-    allow_header: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -267,10 +264,7 @@ impl Default for Config {
             function_docstring: FunctionDocstringRule {
                 policy: FunctionDocstringPolicy::Optional,
             },
-            no_comments: NoCommentsRule {
-                enabled: false,
-                allow_header: true,
-            },
+            no_comments: NoCommentsRule { enabled: false },
             format: FormatRule { enabled: true },
             casing: CasingRule {
                 enabled: false,
@@ -321,9 +315,6 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
     if let Some(rule) = &rules.no_comments {
         if let Some(enabled) = rule.enabled {
             config.no_comments.enabled = enabled;
-        }
-        if let Some(allow_header) = rule.allow_header {
-            config.no_comments.allow_header = allow_header;
         }
     }
     if let Some(rule) = &rules.max_function_parameters {

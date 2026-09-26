@@ -18,12 +18,13 @@ func TestNoCommentsConfigAndCLI(t *testing.T) {
 	if err := os.WriteFile(cfg, []byte(`version: 1
 rules:
   format: { enabled: false }
-  no-comments: { enabled: true, allow-header: false }
-  source-file-header: { required: true }
+  no-comments: { enabled: false }
+  source-file-header: { required: false }
 languages:
   cpp:
     rules:
-      no-comments: { allow-header: true }
+      no-comments: { enabled: true }
+      source-file-header: { required: true }
 `), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -32,11 +33,11 @@ languages:
 		code  int
 	}{
 		{nil, 0},
-		{[]string{"--allow-header-comments=false"}, 1},
-		{[]string{"--allow-header-comments=false", "--no-comments=false"}, 0},
-		{[]string{"--no-comments", "--allow-header-comments=false"}, 1},
+		{[]string{"--require-file-header=false"}, 1},
+		{[]string{"--require-file-header=false", "--no-comments=false"}, 0},
+		{[]string{"--no-comments", "--require-file-header=false"}, 1},
 		{[]string{"--no-comments=invalid"}, 2},
-		{[]string{"--allow-header-comments=invalid"}, 2},
+		{[]string{"--require-file-header=invalid"}, 2},
 	} {
 		var stdout, stderr bytes.Buffer
 		args := append([]string{"--config", cfg, "--format", "json"}, test.flags...)

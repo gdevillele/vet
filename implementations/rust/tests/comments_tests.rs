@@ -9,15 +9,14 @@ fn no_comments_conformance() {
     ))
     .unwrap();
     for enabled in [false, true] {
-        for allow_header in [false, true] {
+        for header_required in [false, true] {
             let mut config = Config::default();
             config.format.enabled = false;
-            config.source_file_header.required = true;
+            config.source_file_header.required = header_required;
             config.no_comments.enabled = enabled;
-            config.no_comments.allow_header = allow_header;
             let diagnostics = common::analyze(config, source);
             let mut want = expected.as_array().unwrap().clone();
-            if !allow_header {
+            if !header_required {
                 want.insert(0, serde_json::json!({"line": 1, "column": 1}));
             }
             if !enabled {
@@ -40,17 +39,17 @@ fn no_comments_config_and_cli() {
     let file = dir.path().join("sample.rs");
     let cfg = dir.path().join("vet.yaml");
     std::fs::write(&file, "// Header\nfn main() {}\n").unwrap();
-    std::fs::write(&cfg, "version: 1\nrules:\n  format: { enabled: false }\n  source-file-header: { required: true }\n  no-comments: { enabled: true, allow-header: false }\nlanguages:\n  rust:\n    rules:\n      no-comments: { allow-header: true }\n").unwrap();
+    std::fs::write(&cfg, "version: 1\nrules:\n  format: { enabled: false }\n  source-file-header: { required: false }\n  no-comments: { enabled: false }\nlanguages:\n  rust:\n    rules:\n      no-comments: { enabled: true }\n      source-file-header: { required: true }\n").unwrap();
     for (flags, expected) in [
         (vec![], 0),
-        (vec!["--allow-header-comments=false"], 1),
+        (vec!["--require-file-header=false"], 1),
         (
-            vec!["--allow-header-comments=false", "--no-comments=false"],
+            vec!["--require-file-header=false", "--no-comments=false"],
             0,
         ),
-        (vec!["--allow-header-comments=false", "--no-comments"], 1),
+        (vec!["--require-file-header=false", "--no-comments"], 1),
         (vec!["--no-comments=invalid"], 2),
-        (vec!["--allow-header-comments=invalid"], 2),
+        (vec!["--require-file-header=invalid"], 2),
     ] {
         let mut args = vec!["--config", cfg.to_str().unwrap(), "--format", "json"];
         args.extend(flags);

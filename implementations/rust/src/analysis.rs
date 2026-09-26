@@ -142,7 +142,7 @@ impl Analyzer {
                 token.kind,
                 rustc_lexer::TokenKind::LineComment { .. }
                     | rustc_lexer::TokenKind::BlockComment { .. }
-            ) && !(rule.allow_header
+            ) && !(self.config.source_file_header.required
                 && header.present
                 && offset >= header.offset
                 && offset < header.first_code_offset)

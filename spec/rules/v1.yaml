@@ -373,7 +373,6 @@ rules:
     default_severity: error
     default_config:
       enabled: false
-      allow-header: true
     language_compatibility:
       go:
         status: compatible
@@ -390,12 +389,13 @@ rules:
       typescript:
         status: compatible
         implementation: implemented
-    summary: Source comments are forbidden when enabled, with an optional file-header exception.
+    summary: Source comments are forbidden when enabled, with an implicit exception for required file headers.
     notes:
-      - Configured with rules.no-comments.enabled and rules.no-comments.allow-header, including language overrides.
-      - CLI flags --no-comments and --allow-header-comments override their corresponding config fields; both accept =false.
+      - Configured with rules.no-comments.enabled, including language overrides.
+      - CLI flag --no-comments overrides rules.no-comments.enabled and accepts =false.
       - Emits one VET015 diagnostic per comment token at its opening delimiter, with message "comment is not allowed".
-      - allow-header exempts only the header group recognized by VET002 through VET004; it does not require a header or disable header length checks.
+      - When source-file-header.required is true, only the header group recognized by VET002 through VET004 is implicitly allowed; header presence and length checks still apply.
+      - When source-file-header.required is false (the default), all comments are forbidden, including file headers.
       - Empty comments, documentation comments, and tool/compiler directive comments are included; there is no implicit directive exemption.
       - Comments inside the exempt header group are allowed, including directives in that group. Separately skipped directive or generated-marker groups are not exempt.
       - Shebangs and comment-like text in literals are not comments. Comments inside interpolated expressions are checked.

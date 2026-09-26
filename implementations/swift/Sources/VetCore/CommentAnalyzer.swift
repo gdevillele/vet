@@ -2,8 +2,8 @@ import SwiftParser
 import SwiftSyntax
 
 enum CommentAnalyzer {
-    static func analyze(_ request: AnalyzeFileRequest, rule: NoCommentsRule) -> [Diagnostic] {
-        guard rule.enabled else { return [] }
+    static func analyze(_ request: AnalyzeFileRequest, config: VetConfig) -> [Diagnostic] {
+        guard config.noComments.enabled else { return [] }
         let header = SourceFileHeaderAnalyzer.parseHeader(request.source)
         let characters = Array(request.source)
         let headerStart = String(characters.prefix(header.offset)).utf8.count
@@ -20,7 +20,7 @@ enum CommentAnalyzer {
                     defer { position = position.advanced(by: piece.sourceLength.utf8Length) }
                     switch piece {
                     case .lineComment, .blockComment, .docLineComment, .docBlockComment:
-                        if rule.allowHeader && header.present && position.utf8Offset >= headerStart
+                        if config.sourceFileHeader.required && header.present && position.utf8Offset >= headerStart
                             && position.utf8Offset < headerEnd
                         {
                             continue

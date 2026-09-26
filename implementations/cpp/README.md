@@ -85,11 +85,12 @@ diagnostic shape as the other implementations.
 
 ## Comment prohibition (VET015)
 
-Use `rules.no-comments: { enabled: true, allow-header: true }` to forbid
-comments outside the existing file header, or set `allow-header: false` for a
-complete ban. Pair with `source-file-header.required: true` to require the
-header. CLI overrides are `--no-comments[=false]` and
-`--allow-header-comments[=false]`.
+Use `rules.no-comments: { enabled: true }` to forbid all comments. If
+`source-file-header.required: true`, the required header is implicitly allowed;
+all other comments remain forbidden. Without a required header, even header
+comments are forbidden. CLI overrides are `--no-comments[=false]` and
+`--require-file-header[=false]`.
+
 
 This opt-in rule requires `clang` in PATH, in addition to `clang-format` if
 format checking is enabled. It uses Clang's raw lexer on the supplied source,

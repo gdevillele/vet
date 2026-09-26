@@ -74,10 +74,11 @@ a clear error (it does not silently skip format checks when enabled).
 
 ## Comment prohibition (VET015)
 
-Use `rules.no-comments: { enabled: true, allow-header: true }` to forbid
-comments outside the existing file header, or set `allow-header: false` for a
-complete ban. Pair with `source-file-header.required: true` to require the
-header. CLI overrides are `--no-comments[=false]` and
-`--allow-header-comments[=false]`. SwiftPM resolves SwiftParser/SwiftSyntax;
+Use `rules.no-comments: { enabled: true }` to forbid all comments. If
+`source-file-header.required: true`, the required header is implicitly allowed;
+all other comments remain forbidden. Without a required header, even header
+comments are forbidden. CLI overrides are `--no-comments[=false]` and
+`--require-file-header[=false]`.
+SwiftPM resolves SwiftParser/SwiftSyntax;
 comment detection handles nested comments, raw strings, regex literals, and
 comments inside string interpolations.

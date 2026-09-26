@@ -71,7 +71,6 @@ function parseArgs(args: string[]): {
             name === "casing" ||
             name === "require-file-header" ||
             name === "no-comments" ||
-            name === "allow-header-comments" ||
             name === "github-actions-pinned" ||
             name === "version"
           ) {
@@ -105,7 +104,6 @@ function parseArgs(args: string[]): {
           name !== "casing" &&
           name !== "require-file-header" &&
           name !== "no-comments" &&
-          name !== "allow-header-comments" &&
           name !== "github-actions-pinned" &&
           name !== "version"
         ) {
@@ -273,12 +271,6 @@ export async function run(invocation: Invocation): Promise<number> {
     }
     if (visited.has("no-comments")) {
       cfg.noComments.enabled = asBool(flags["no-comments"], "--no-comments");
-    }
-    if (visited.has("allow-header-comments")) {
-      cfg.noComments.allowHeader = asBool(
-        flags["allow-header-comments"],
-        "--allow-header-comments",
-      );
     }
     if (visited.has("github-actions-pinned")) {
       cfg.githubActionsPinned.enabled = asBool(

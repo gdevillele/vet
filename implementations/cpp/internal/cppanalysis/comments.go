@@ -45,10 +45,10 @@ func (a Analyzer) checkComments(request AnalyzeFileRequest) ([]diagnostic.Diagno
 	if code != 0 {
 		return nil, fmt.Errorf("clang comment scan failed for %s (exit %d): %s", request.Path, code, output)
 	}
-	return commentDiagnostics(request, rule.AllowHeader, string(output), file.Name())
+	return commentDiagnostics(request, a.config.SourceFileHeader.Required, string(output), file.Name())
 }
 
-func commentDiagnostics(request AnalyzeFileRequest, allowHeader bool, output string, tokenPath string) ([]diagnostic.Diagnostic, error) {
+func commentDiagnostics(request AnalyzeFileRequest, headerRequired bool, output string, tokenPath string) ([]diagnostic.Diagnostic, error) {
 	source := string(request.Source)
 	header := findSourceFileHeader(source)
 	startLine, startColumn := offsetToLineColumn(source, header.Offset)
@@ -67,7 +67,7 @@ func commentDiagnostics(request AnalyzeFileRequest, allowHeader bool, output str
 		column, _ := strconv.Atoi(output[match[4]:match[5]])
 		afterStart := line > startLine || (line == startLine && column >= startColumn)
 		beforeEnd := line < endLine || (line == endLine && column < endColumn)
-		if allowHeader && header.Present && afterStart && beforeEnd {
+		if headerRequired && header.Present && afterStart && beforeEnd {
 			continue
 		}
 		diagnostics = append(diagnostics, diagnostic.Diagnostic{

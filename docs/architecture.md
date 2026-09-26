@@ -179,9 +179,10 @@ hexadecimal commit SHA after `@`. Local `./...` actions, Docker `docker://...`
 actions, and job-level reusable workflow calls are outside the first-version
 scope.
 
-`VET015` forbids source comments when `no-comments.enabled` is true. The default
-`allow-header: true` exempts the existing VET002–VET004 header group; set it to
-false for a complete ban. Detection uses native comment tokens/trivia rather
+`VET015` forbids source comments when `no-comments.enabled` is true. When
+`source-file-header.required` is true, the existing VET002–VET004 header group
+is implicitly allowed. Otherwise, every comment is forbidden, including headers.
+Header length checks still apply. Detection uses native comment tokens/trivia rather
 than scanning source text for delimiter patterns. All comment kinds, including
 directives and documentation, are checked. C/C++ delegates to
 `clang -fsyntax-only -Xclang -dump-raw-tokens` on the supplied source, without

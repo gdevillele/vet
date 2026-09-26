@@ -61,7 +61,7 @@ public struct SwiftAnalyzer {
             source: request.source,
             rule: config.sourceFileHeader
         )))
-        diagnostics.append(contentsOf: CommentAnalyzer.analyze(request, rule: config.noComments))
+        diagnostics.append(contentsOf: CommentAnalyzer.analyze(request, config: config))
         return diagnostics
     }
 }

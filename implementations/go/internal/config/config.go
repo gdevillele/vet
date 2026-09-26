@@ -30,8 +30,7 @@ type MaxFunctionParametersRule struct {
 }
 
 type NoCommentsRule struct {
-	Enabled     bool
-	AllowHeader bool
+	Enabled bool
 }
 
 type SourceFileHeaderRule struct {
@@ -130,8 +129,7 @@ type maxFunctionParametersFile struct {
 }
 
 type noCommentsFile struct {
-	Enabled     *bool `yaml:"enabled"`
-	AllowHeader *bool `yaml:"allow-header"`
+	Enabled *bool `yaml:"enabled"`
 }
 
 type sourceFileHeaderFile struct {
@@ -172,7 +170,6 @@ type githubActionsPinnedFile struct {
 
 func Default() Config {
 	return Config{
-		NoComments: NoCommentsRule{AllowHeader: true},
 		MaxFunctionParameters: MaxFunctionParametersRule{
 			Enabled: true,
 			Max:     DefaultMaxFunctionParameters,
@@ -247,9 +244,6 @@ func applyRules(cfg Config, rules rulesFile) Config {
 	if rule := rules.NoComments; rule != nil {
 		if rule.Enabled != nil {
 			result.NoComments.Enabled = *rule.Enabled
-		}
-		if rule.AllowHeader != nil {
-			result.NoComments.AllowHeader = *rule.AllowHeader
 		}
 	}
 	if rules.MaxFunctionParameters != nil {

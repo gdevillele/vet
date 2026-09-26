@@ -99,15 +99,16 @@ rules:
     required: true
   no-comments:
     enabled: true
-    allow-header: true
 ```
 
-`no-comments` (`VET015`) is disabled by default. Set `allow-header: false` to
-forbid **every** comment, including headers. The header exception uses the same
-header group as `source-file-header`; header presence and length checks still
-apply independently. Both settings support `languages.<language>.rules`
-overrides and CLI overrides: `--no-comments[=false]` and
-`--allow-header-comments[=false]` (the latter defaults to true).
+`no-comments` (`VET015`) is disabled by default. When enabled, it forbids
+**every** comment unless `source-file-header.required` is true. Requiring a
+header implicitly permits the same header group checked by `source-file-header`;
+all other comments remain forbidden, and header length checks still apply.
+Without a required header, even a leading header comment is forbidden.
+
+Both rules support `languages.<language>.rules` overrides and CLI overrides:
+`--no-comments[=false]` and `--require-file-header[=false]`.
 
 Line comments, block comments, documentation comments, empty comments, and
 compiler/linter directives all count. There are no automatic exceptions for
@@ -143,7 +144,6 @@ rules:
     policy: optional
   no-comments:
     enabled: false
-    allow-header: true
   format:
     enabled: true
   casing:

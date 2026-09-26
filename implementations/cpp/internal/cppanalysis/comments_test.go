@@ -24,24 +24,24 @@ func TestNoCommentsConformance(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, enabled := range []bool{false, true} {
-		for _, allowHeader := range []bool{false, true} {
+		for _, headerRequired := range []bool{false, true} {
 			cfg := config.Default()
 			cfg.Format.Enabled = false
-			cfg.SourceFileHeader.Required = true
-			cfg.NoComments = config.NoCommentsRule{Enabled: enabled, AllowHeader: allowHeader}
+			cfg.SourceFileHeader.Required = headerRequired
+			cfg.NoComments = config.NoCommentsRule{Enabled: enabled}
 			diagnostics, err := New(cfg).AnalyzeFile(AnalyzeFileRequest{Path: "comments.cpp", Source: source})
 			if err != nil {
 				t.Fatal(err)
 			}
 			want := append(expected[:0:0], expected...)
-			if !allowHeader {
+			if !headerRequired {
 				want = append([]struct{ Line, Column int }{{1, 1}}, want...)
 			}
 			if !enabled {
 				want = nil
 			}
 			if len(diagnostics) != len(want) {
-				t.Fatalf("enabled=%v allowHeader=%v: got %#v, want %#v", enabled, allowHeader, diagnostics, want)
+				t.Fatalf("enabled=%v headerRequired=%v: got %#v, want %#v", enabled, headerRequired, diagnostics, want)
 			}
 			for i, d := range diagnostics {
 				if d.RuleID != RuleNoComments || d.Line != want[i].Line || d.Column != want[i].Column || d.Message != "comment is not allowed" {

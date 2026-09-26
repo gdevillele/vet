@@ -37,7 +37,6 @@ struct CLIOptions {
     var typeCasing: CasingStyle?
     var constantCasing: CasingStyle?
     var noComments: Bool?
-    var allowHeaderComments: Bool?
     var githubActionsPinned: Bool?
     var version = false
     var paths: [String] = []
@@ -321,8 +320,6 @@ public enum CLI {
                     cursor += parsed.consumed
                 case "--no-comments", "-no-comments":
                     options.noComments = try optionalBool(inlineValue, flag: flag)
-                case "--allow-header-comments", "-allow-header-comments":
-                    options.allowHeaderComments = try optionalBool(inlineValue, flag: flag)
                 case "--github-actions-pinned", "-github-actions-pinned":
                     options.githubActionsPinned = try optionalBool(inlineValue, flag: flag)
                     options.visited.insert("github-actions-pinned")
@@ -432,9 +429,6 @@ public enum CLI {
         }
         if let enabled = request.options.noComments {
             config.noComments.enabled = enabled
-        }
-        if let allowHeader = request.options.allowHeaderComments {
-            config.noComments.allowHeader = allowHeader
         }
         if let enabled = request.options.githubActionsPinned {
             config.githubActionsPinned.enabled = enabled

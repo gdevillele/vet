@@ -18,7 +18,7 @@ public struct VetConfig: Equatable {
             // VET001 is unimplemented for Swift; keep it disabled so a zero-flag
             // run does not appear to enforce a rule the analyzer never consults.
             maxFunctionParameters: MaxFunctionParametersRule(enabled: false, max: 1),
-            noComments: NoCommentsRule(enabled: false, allowHeader: true),
+            noComments: NoCommentsRule(enabled: false),
             sourceFileHeader: SourceFileHeaderRule(required: false, minLength: 0, maxLength: 0),
             sourceFileLines: SourceFileLinesRule(max: 0),
             functionBodyLines: FunctionBodyLinesRule(max: 0),
@@ -46,7 +46,6 @@ public struct MaxFunctionParametersRule: Equatable {
 
 public struct NoCommentsRule: Equatable {
     public var enabled: Bool
-    public var allowHeader: Bool
 }
 
 public struct SourceFileHeaderRule: Equatable {
@@ -214,18 +213,15 @@ struct MaxFunctionParametersFile: Decodable {
 
 struct NoCommentsFile: Decodable {
     let enabled: Bool?
-    let allowHeader: Bool?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled
-        case allowHeader = "allow-header"
     }
 
     init(from decoder: Decoder) throws {
         try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
-        allowHeader = try container.decodeIfPresent(Bool.self, forKey: .allowHeader)
     }
 }
 
@@ -529,9 +525,6 @@ public enum ConfigLoader {
         if let rule = rules.noComments {
             if let enabled = rule.enabled {
                 result.noComments.enabled = enabled
-            }
-            if let allowHeader = rule.allowHeader {
-                result.noComments.allowHeader = allowHeader
             }
         }
 

@@ -17,16 +17,16 @@ it("no-comments conformance", async () => {
     fs.readFileSync(new URL("expected.json", fixture), "utf8"),
   );
   for (const enabled of [false, true]) {
-    for (const allowHeader of [false, true]) {
+    for (const headerRequired of [false, true]) {
       const cfg = defaultConfig();
       cfg.format.enabled = false;
-      cfg.sourceFileHeader.required = true;
-      cfg.noComments = { enabled, allowHeader };
+      cfg.sourceFileHeader.required = headerRequired;
+      cfg.noComments = { enabled };
       const diagnostics = await new Analyzer(cfg).analyzeFile({
         path: "comments.tsx",
         source,
       });
-      const want = allowHeader
+      const want = headerRequired
         ? expected
         : [{ line: 1, column: 1 }, ...expected];
       assert.deepEqual(
@@ -51,21 +51,22 @@ it("no-comments config and CLI", async (t) => {
     `version: 1
 rules:
   format: { enabled: false }
-  source-file-header: { required: true }
-  no-comments: { enabled: true, allow-header: false }
+  source-file-header: { required: false }
+  no-comments: { enabled: false }
 languages:
   typescript:
     rules:
-      no-comments: { allow-header: true }
+      no-comments: { enabled: true }
+      source-file-header: { required: true }
 `,
   );
   for (const [flags, expected] of [
     [[], 0],
-    [["--allow-header-comments=false"], 1],
-    [["--allow-header-comments=false", "--no-comments=false"], 0],
-    [["--allow-header-comments=false", "--no-comments"], 1],
+    [["--require-file-header=false"], 1],
+    [["--require-file-header=false", "--no-comments=false"], 0],
+    [["--require-file-header=false", "--no-comments"], 1],
     [["--no-comments=invalid"], 2],
-    [["--allow-header-comments=invalid"], 2],
+    [["--require-file-header=invalid"], 2],
   ] as const) {
     let stdout = "";
     let stderr = "";

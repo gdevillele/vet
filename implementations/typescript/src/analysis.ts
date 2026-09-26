@@ -84,7 +84,7 @@ export class Analyzer {
       .filter(
         (comment) =>
           !(
-            rule.allowHeader &&
+            this.config.sourceFileHeader.required &&
             header.present &&
             comment.pos >= header.offset &&
             comment.end <= header.firstCodeOffset

@@ -34,7 +34,6 @@ struct CliOptions {
     type_casing: Option<CasingStyle>,
     constant_casing: Option<CasingStyle>,
     no_comments: Option<bool>,
-    allow_header_comments: Option<bool>,
     github_actions_pinned: Option<bool>,
     version: bool,
     paths: Vec<String>,
@@ -250,9 +249,6 @@ fn parse_options(args: Vec<String>) -> Result<CliOptions, String> {
             }
             "--no-comments" | "-no-comments" => {
                 options.no_comments = Some(optional_bool(inline_value, flag)?);
-            }
-            "--allow-header-comments" | "-allow-header-comments" => {
-                options.allow_header_comments = Some(optional_bool(inline_value, flag)?);
             }
             "--github-actions-pinned" | "-github-actions-pinned" => {
                 options.github_actions_pinned = Some(optional_bool(inline_value, flag)?);
@@ -537,9 +533,6 @@ fn apply_options(config: &mut Config, options: &CliOptions) {
     }
     if let Some(enabled) = options.no_comments {
         config.no_comments.enabled = enabled;
-    }
-    if let Some(allow_header) = options.allow_header_comments {
-        config.no_comments.allow_header = allow_header;
     }
     if let Some(enabled) = options.github_actions_pinned {
         config.github_actions_pinned.enabled = enabled;

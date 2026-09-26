@@ -15,20 +15,21 @@ final class CommentTests: XCTestCase {
         version: 1
         rules:
           format: { enabled: false }
-          source-file-header: { required: true }
-          no-comments: { enabled: true, allow-header: false }
+          source-file-header: { required: false }
+          no-comments: { enabled: false }
         languages:
           swift:
             rules:
-              no-comments: { allow-header: true }
+              no-comments: { enabled: true }
+              source-file-header: { required: true }
         """.write(to: cfg, atomically: true, encoding: .utf8)
         let cases: [([String], Int)] = [
             ([], 0),
-            (["--allow-header-comments=false"], 1),
-            (["--allow-header-comments=false", "--no-comments=false"], 0),
-            (["--allow-header-comments=false", "--no-comments"], 1),
+            (["--require-file-header=false"], 1),
+            (["--require-file-header=false", "--no-comments=false"], 0),
+            (["--require-file-header=false", "--no-comments"], 1),
             (["--no-comments=invalid"], 2),
-            (["--allow-header-comments=invalid"], 2),
+            (["--require-file-header=invalid"], 2),
         ]
         for (flags, expected) in cases {
             var stdout = ""
@@ -58,14 +59,14 @@ final class CommentTests: XCTestCase {
         let expected = try JSONDecoder().decode(
             [[String: Int]].self, from: Data(contentsOf: fixture.appendingPathComponent("expected.json")))
         for enabled in [false, true] {
-            for allowHeader in [false, true] {
+            for headerRequired in [false, true] {
                 var config = VetConfig.default()
                 config.format.enabled = false
-                config.sourceFileHeader.required = true
-                config.noComments = NoCommentsRule(enabled: enabled, allowHeader: allowHeader)
+                config.sourceFileHeader.required = headerRequired
+                config.noComments = NoCommentsRule(enabled: enabled)
                 let diagnostics = try SwiftAnalyzer(config: config).analyzeFile(
                     AnalyzeFileRequest(path: "comments.swift", source: source))
-                let want = allowHeader ? expected : [["line": 1, "column": 1]] + expected
+                let want = headerRequired ? expected : [["line": 1, "column": 1]] + expected
                 XCTAssertEqual(diagnostics.map { ["line": $0.line, "column": $0.column] }, enabled ? want : [])
                 for diagnostic in diagnostics {
                     XCTAssertEqual(diagnostic.ruleID, RuleID.noComments)

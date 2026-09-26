@@ -15,7 +15,6 @@ rules:
     policy: optional
   no-comments:
     enabled: false
-    allow-header: true
   format:
     enabled: true
   casing:

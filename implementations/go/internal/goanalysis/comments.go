@@ -11,7 +11,7 @@ func (a Analyzer) checkComments(request fileHeaderCheck) []diagnostic.Diagnostic
 	var diagnostics []diagnostic.Diagnostic
 	for _, group := range request.File.Comments {
 		for _, comment := range group.List {
-			if rule.AllowHeader && header.Present && comment.Pos() >= header.Pos && comment.End() <= header.End {
+			if a.config.SourceFileHeader.Required && header.Present && comment.Pos() >= header.Pos && comment.End() <= header.End {
 				continue
 			}
 			position := request.FileSet.PositionFor(comment.Pos(), false)
