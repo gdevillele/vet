@@ -64,6 +64,22 @@ From `implementations/typescript` (after `npm install`):
 npm run vet -- ../../spec/conformance/max-function-parameters/typescript
 ```
 
+### TypeScript: install from npm
+
+Consumers can install the published runner as a dev dependency:
+
+```sh
+npm install -D @vet/typescript
+npx vet .
+```
+
+Package details, CLI packaging, and maintainer release steps (GitHub Environment
+`production`, `NPM_TOKEN`, version tags) are documented in
+[implementations/typescript/README.md](implementations/typescript/README.md).
+Releases publish automatically on push of version tags (glob
+`v[0-9]*.[0-9]*.[0-9]*`, e.g. `v0.1.0`) via
+[`.github/workflows/publish-typescript.yml`](.github/workflows/publish-typescript.yml).
+
 The default enabled structural rule for the Go, Rust, and TypeScript runners is
 `VET001`, which rejects functions with more than one parameter. Formatting
 (`VET008`) is enabled by default and delegates to industry tools: `go/format`
@@ -259,6 +275,7 @@ That means:
 - Swift users can run `swift run`.
 - Rust users can run `cargo run` or install a Rust-native binary.
 - C/C++ users run the C/C++ runner (Go-hosted binary or `go run`).
+- TypeScript users can `npm install -D @vet/typescript` and run `npx vet`.
 - Rule semantics do not drift between implementations.
 
 The shared rule spec records both compatibility and implementation status for

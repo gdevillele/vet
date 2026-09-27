@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_MAX_FUNCTION_PARAMETERS,
   defaultConfig,
@@ -19,7 +20,23 @@ import {
 } from "./diagnostic.js";
 import { analyzeWorkflowFile } from "./workflow.js";
 
-export const VERSION = "0.1.0-dev";
+function readPackageVersion(): string {
+  try {
+    const here = path.dirname(fileURLToPath(import.meta.url));
+    const pkgPath = path.join(here, "..", "package.json");
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8")) as {
+      version?: string;
+    };
+    if (typeof pkg.version === "string" && pkg.version.length > 0) {
+      return pkg.version;
+    }
+  } catch {
+    // Fall through to development placeholder.
+  }
+  return "0.0.0-dev";
+}
+
+export const VERSION = readPackageVersion();
 const DEFAULT_CONFIG_FILENAME = "vet.yaml";
 
 export interface Invocation {
