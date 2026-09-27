@@ -1,0 +1,57 @@
+# Publish the TypeScript vet runner to npm when a version release tag is pushed.
+#
+# Trigger: push of version-like tags (vMAJOR.MINOR.PATCH…).
+# Tag filters use GitHub Actions filter globs (not regex). Prefer * over + so
+# ordinary tags such as v0.1.0 match. Strict semver is enforced later by
+# scripts/version-from-tag.mjs (invalid tags fail the job before publish).
+# Secrets: GitHub Environment "production" must define NPM_TOKEN
+#          (npm automation token with publish rights for the package scope).
+#
+# One-time setup: see implementations/typescript/README.md (Publishing).
+
+name: publish-typescript
+
+on:
+  push:
+    tags:
+      # GHA filter glob (not regex): matches v0.1.0, v1.2.3-alpha.1, etc.
+      - "v[0-9]*.[0-9]*.[0-9]*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: implementations/typescript
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+          cache-dependency-path: implementations/typescript/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Set package version from release tag
+        run: node scripts/version-from-tag.mjs --write "${GITHUB_REF_NAME}"
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,18 +1,57 @@
 {
   "name": "@vet/typescript",
-  "version": "0.1.0-dev",
-  "description": "TypeScript-native vet runner",
+  "version": "0.1.0",
+  "description": "TypeScript-native vet runner — strict code quality checks for agent-written TypeScript",
   "type": "module",
-  "bin": {
-    "vet": "./bin/vet.js"
+  "license": "MIT",
+  "author": "Gaëtan de Villèle",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gdevillele/vet.git",
+    "directory": "implementations/typescript"
   },
+  "homepage": "https://github.com/gdevillele/vet/tree/main/implementations/typescript#readme",
+  "bugs": {
+    "url": "https://github.com/gdevillele/vet/issues"
+  },
+  "keywords": [
+    "vet",
+    "linter",
+    "typescript",
+    "code-quality",
+    "static-analysis",
+    "cli"
+  ],
+  "bin": {
+    "vet": "bin/vet.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "bin",
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
     "vet": "node --import tsx src/cli.ts",
-    "test": "node --import tsx --test tests/**/*.test.ts"
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "version-from-tag": "node scripts/version-from-tag.mjs"
   },
   "engines": {
     "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
     "prettier": "^3.4.2",
