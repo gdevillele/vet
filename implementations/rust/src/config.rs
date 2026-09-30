@@ -22,11 +22,13 @@ pub struct Config {
 pub struct MaxFunctionParametersRule {
     pub enabled: bool,
     pub max: i32,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NoCommentsRule {
     pub enabled: bool,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -34,16 +36,19 @@ pub struct SourceFileHeaderRule {
     pub required: bool,
     pub min_length: i32,
     pub max_length: i32,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SourceFileLinesRule {
     pub max: i32,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionBodyLinesRule {
     pub max: i32,
+    pub reason: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -57,11 +62,13 @@ pub enum FunctionDocstringPolicy {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FunctionDocstringRule {
     pub policy: FunctionDocstringPolicy,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FormatRule {
     pub enabled: bool,
+    pub reason: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
@@ -103,11 +110,13 @@ pub struct CasingRule {
     pub constants: CasingStyle,
     pub ignore_names: Vec<String>,
     pub ignore_patterns: Vec<String>,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GithubActionsPinnedRule {
     pub enabled: bool,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -185,12 +194,14 @@ struct RulesFile {
 struct MaxFunctionParametersFile {
     enabled: Option<bool>,
     max: Option<i32>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct NoCommentsFile {
     enabled: Option<bool>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -201,30 +212,35 @@ struct SourceFileHeaderFile {
     min_length: Option<i32>,
     #[serde(rename = "max-length")]
     max_length: Option<i32>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct SourceFileLinesFile {
     max: Option<i32>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FunctionBodyLinesFile {
     max: Option<i32>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FunctionDocstringFile {
     policy: Option<FunctionDocstringPolicy>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FormatFile {
     enabled: Option<bool>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -239,12 +255,14 @@ struct CasingFile {
     ignore_names: Option<Vec<String>>,
     #[serde(rename = "ignore-patterns")]
     ignore_patterns: Option<Vec<String>>,
+    reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GithubActionsPinnedFile {
     enabled: Option<bool>,
+    reason: Option<String>,
 }
 
 impl Default for Config {
@@ -253,19 +271,34 @@ impl Default for Config {
             max_function_parameters: MaxFunctionParametersRule {
                 enabled: true,
                 max: DEFAULT_MAX_FUNCTION_PARAMETERS,
+                reason: String::new(),
             },
             source_file_header: SourceFileHeaderRule {
                 required: false,
                 min_length: 0,
                 max_length: 0,
+                reason: String::new(),
             },
-            source_file_lines: SourceFileLinesRule { max: 0 },
-            function_body_lines: FunctionBodyLinesRule { max: 0 },
+            source_file_lines: SourceFileLinesRule {
+                max: 0,
+                reason: String::new(),
+            },
+            function_body_lines: FunctionBodyLinesRule {
+                max: 0,
+                reason: String::new(),
+            },
             function_docstring: FunctionDocstringRule {
                 policy: FunctionDocstringPolicy::Optional,
+                reason: String::new(),
             },
-            no_comments: NoCommentsRule { enabled: false },
-            format: FormatRule { enabled: true },
+            no_comments: NoCommentsRule {
+                enabled: false,
+                reason: String::new(),
+            },
+            format: FormatRule {
+                enabled: true,
+                reason: String::new(),
+            },
             casing: CasingRule {
                 enabled: false,
                 functions: CasingStyle::LanguageDefault,
@@ -274,8 +307,12 @@ impl Default for Config {
                 constants: CasingStyle::LanguageDefault,
                 ignore_names: Vec::new(),
                 ignore_patterns: Vec::new(),
+                reason: String::new(),
             },
-            github_actions_pinned: GithubActionsPinnedRule { enabled: false },
+            github_actions_pinned: GithubActionsPinnedRule {
+                enabled: false,
+                reason: String::new(),
+            },
             file_selection: FileSelection::default(),
         }
     }
@@ -316,6 +353,9 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
         if let Some(enabled) = rule.enabled {
             config.no_comments.enabled = enabled;
         }
+        if let Some(reason) = &rule.reason {
+            config.no_comments.reason = reason.clone();
+        }
     }
     if let Some(rule) = &rules.max_function_parameters {
         if let Some(enabled) = rule.enabled {
@@ -323,6 +363,9 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
         }
         if let Some(max) = rule.max {
             config.max_function_parameters.max = max;
+        }
+        if let Some(reason) = &rule.reason {
+            config.max_function_parameters.reason = reason.clone();
         }
     }
 
@@ -336,11 +379,17 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
         if let Some(max_length) = rule.max_length {
             config.source_file_header.max_length = max_length;
         }
+        if let Some(reason) = &rule.reason {
+            config.source_file_header.reason = reason.clone();
+        }
     }
 
     if let Some(rule) = &rules.source_file_lines {
         if let Some(max) = rule.max {
             config.source_file_lines.max = max;
+        }
+        if let Some(reason) = &rule.reason {
+            config.source_file_lines.reason = reason.clone();
         }
     }
 
@@ -348,17 +397,26 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
         if let Some(max) = rule.max {
             config.function_body_lines.max = max;
         }
+        if let Some(reason) = &rule.reason {
+            config.function_body_lines.reason = reason.clone();
+        }
     }
 
     if let Some(rule) = &rules.function_docstring {
         if let Some(policy) = rule.policy {
             config.function_docstring.policy = policy;
         }
+        if let Some(reason) = &rule.reason {
+            config.function_docstring.reason = reason.clone();
+        }
     }
 
     if let Some(rule) = &rules.format {
         if let Some(enabled) = rule.enabled {
             config.format.enabled = enabled;
+        }
+        if let Some(reason) = &rule.reason {
+            config.format.reason = reason.clone();
         }
     }
 
@@ -384,11 +442,17 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
         if let Some(ignore_patterns) = &rule.ignore_patterns {
             config.casing.ignore_patterns = ignore_patterns.clone();
         }
+        if let Some(reason) = &rule.reason {
+            config.casing.reason = reason.clone();
+        }
     }
 
     if let Some(rule) = &rules.github_actions_pinned {
         if let Some(enabled) = rule.enabled {
             config.github_actions_pinned.enabled = enabled;
+        }
+        if let Some(reason) = &rule.reason {
+            config.github_actions_pinned.reason = reason.clone();
         }
     }
 

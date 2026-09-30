@@ -13,13 +13,18 @@ export type CasingStyle =
   | "SNAKE_CASE_FULL_CAPS";
 
 export interface Config {
-  noComments: { enabled: boolean };
-  maxFunctionParameters: { enabled: boolean; max: number };
-  sourceFileHeader: { required: boolean; minLength: number; maxLength: number };
-  sourceFileLines: { max: number };
-  functionBodyLines: { max: number };
-  functionDocstring: { policy: FunctionDocstringPolicy };
-  format: { enabled: boolean };
+  noComments: { enabled: boolean; reason?: string };
+  maxFunctionParameters: { enabled: boolean; max: number; reason?: string };
+  sourceFileHeader: {
+    required: boolean;
+    minLength: number;
+    maxLength: number;
+    reason?: string;
+  };
+  sourceFileLines: { max: number; reason?: string };
+  functionBodyLines: { max: number; reason?: string };
+  functionDocstring: { policy: FunctionDocstringPolicy; reason?: string };
+  format: { enabled: boolean; reason?: string };
   casing: {
     enabled: boolean;
     functions: CasingStyle;
@@ -28,8 +33,9 @@ export interface Config {
     constants: CasingStyle;
     ignoreNames: string[];
     ignorePatterns: string[];
+    reason?: string;
   };
-  githubActionsPinned: { enabled: boolean };
+  githubActionsPinned: { enabled: boolean; reason?: string };
   fileSelection: { files: string[]; exclude: string[] };
 }
 
@@ -64,17 +70,25 @@ export function defaultConfig(): Config {
 }
 
 interface RulesFile {
-  "no-comments"?: { enabled?: boolean };
-  "max-function-parameters"?: { enabled?: boolean; max?: number };
+  "no-comments"?: { enabled?: boolean; reason?: string };
+  "max-function-parameters"?: {
+    enabled?: boolean;
+    max?: number;
+    reason?: string;
+  };
   "source-file-header"?: {
     required?: boolean;
     "min-length"?: number;
     "max-length"?: number;
+    reason?: string;
   };
-  "max-source-file-lines"?: { max?: number };
-  "max-function-body-lines"?: { max?: number };
-  "function-docstring"?: { policy?: FunctionDocstringPolicy };
-  format?: { enabled?: boolean };
+  "max-source-file-lines"?: { max?: number; reason?: string };
+  "max-function-body-lines"?: { max?: number; reason?: string };
+  "function-docstring"?: {
+    policy?: FunctionDocstringPolicy;
+    reason?: string;
+  };
+  format?: { enabled?: boolean; reason?: string };
   casing?: {
     enabled?: boolean;
     functions?: CasingStyle;
@@ -83,9 +97,25 @@ interface RulesFile {
     constants?: CasingStyle;
     "ignore-names"?: string[];
     "ignore-patterns"?: string[];
+    reason?: string;
   };
-  "github-actions-pinned"?: { enabled?: boolean };
+  "github-actions-pinned"?: { enabled?: boolean; reason?: string };
 }
+
+const RULE_FIELDS: Record<
+  keyof RulesFile,
+  Exclude<keyof Config, "fileSelection">
+> = {
+  "no-comments": "noComments",
+  "max-function-parameters": "maxFunctionParameters",
+  "source-file-header": "sourceFileHeader",
+  "max-source-file-lines": "sourceFileLines",
+  "max-function-body-lines": "functionBodyLines",
+  "function-docstring": "functionDocstring",
+  format: "format",
+  casing: "casing",
+  "github-actions-pinned": "githubActionsPinned",
+};
 
 interface FileConfig {
   version?: number;
@@ -169,6 +199,16 @@ function applyRules(cfg: Config, rules: RulesFile | undefined): Config {
 
   if (rules["github-actions-pinned"]?.enabled !== undefined) {
     result.githubActionsPinned.enabled = rules["github-actions-pinned"].enabled;
+  }
+
+  for (const [key, field] of Object.entries(RULE_FIELDS)) {
+    const reason = rules[key as keyof RulesFile]?.reason;
+    if (reason !== undefined) {
+      if (typeof reason !== "string") {
+        throw new Error(`${key}.reason must be a string`);
+      }
+      result[field].reason = reason;
+    }
   }
 
   return result;

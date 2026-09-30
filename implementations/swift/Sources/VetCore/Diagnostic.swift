@@ -7,7 +7,7 @@ public enum Severity: String, Codable, Equatable {
 public struct Diagnostic: Codable, Equatable {
     public let ruleID: String
     public let severity: Severity
-    public let message: String
+    public var message: String
     public let file: String
     public let line: Int
     public let column: Int

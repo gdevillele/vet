@@ -27,24 +27,29 @@ type Config struct {
 type MaxFunctionParametersRule struct {
 	Enabled bool
 	Max     int
+	Reason  string
 }
 
 type NoCommentsRule struct {
 	Enabled bool
+	Reason  string
 }
 
 type SourceFileHeaderRule struct {
 	Required  bool
 	MinLength int
 	MaxLength int
+	Reason    string
 }
 
 type SourceFileLinesRule struct {
-	Max int
+	Max    int
+	Reason string
 }
 
 type FunctionBodyLinesRule struct {
-	Max int
+	Max    int
+	Reason string
 }
 
 type FunctionDocstringPolicy string
@@ -57,10 +62,12 @@ const (
 
 type FunctionDocstringRule struct {
 	Policy FunctionDocstringPolicy
+	Reason string
 }
 
 type FormatRule struct {
 	Enabled bool
+	Reason  string
 }
 
 type CasingStyle string
@@ -82,10 +89,12 @@ type CasingRule struct {
 	Constants      CasingStyle
 	IgnoreNames    []string
 	IgnorePatterns []string
+	Reason         string
 }
 
 type GithubActionsPinnedRule struct {
 	Enabled bool
+	Reason  string
 }
 
 type FileSelection struct {
@@ -124,34 +133,41 @@ type rulesFile struct {
 }
 
 type maxFunctionParametersFile struct {
-	Enabled *bool `yaml:"enabled"`
-	Max     *int  `yaml:"max"`
+	Enabled *bool   `yaml:"enabled"`
+	Max     *int    `yaml:"max"`
+	Reason  *string `yaml:"reason"`
 }
 
 type noCommentsFile struct {
-	Enabled *bool `yaml:"enabled"`
+	Enabled *bool   `yaml:"enabled"`
+	Reason  *string `yaml:"reason"`
 }
 
 type sourceFileHeaderFile struct {
-	Required  *bool `yaml:"required"`
-	MinLength *int  `yaml:"min-length"`
-	MaxLength *int  `yaml:"max-length"`
+	Required  *bool   `yaml:"required"`
+	MinLength *int    `yaml:"min-length"`
+	MaxLength *int    `yaml:"max-length"`
+	Reason    *string `yaml:"reason"`
 }
 
 type sourceFileLinesFile struct {
-	Max *int `yaml:"max"`
+	Max    *int    `yaml:"max"`
+	Reason *string `yaml:"reason"`
 }
 
 type functionBodyLinesFile struct {
-	Max *int `yaml:"max"`
+	Max    *int    `yaml:"max"`
+	Reason *string `yaml:"reason"`
 }
 
 type functionDocstringFile struct {
 	Policy *FunctionDocstringPolicy `yaml:"policy"`
+	Reason *string                  `yaml:"reason"`
 }
 
 type formatFile struct {
-	Enabled *bool `yaml:"enabled"`
+	Enabled *bool   `yaml:"enabled"`
+	Reason  *string `yaml:"reason"`
 }
 
 type casingFile struct {
@@ -162,10 +178,12 @@ type casingFile struct {
 	Constants      *CasingStyle `yaml:"constants"`
 	IgnoreNames    []string     `yaml:"ignore-names"`
 	IgnorePatterns []string     `yaml:"ignore-patterns"`
+	Reason         *string      `yaml:"reason"`
 }
 
 type githubActionsPinnedFile struct {
-	Enabled *bool `yaml:"enabled"`
+	Enabled *bool   `yaml:"enabled"`
+	Reason  *string `yaml:"reason"`
 }
 
 func Default() Config {
@@ -245,6 +263,9 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		if rule.Enabled != nil {
 			result.NoComments.Enabled = *rule.Enabled
 		}
+		if rule.Reason != nil {
+			result.NoComments.Reason = *rule.Reason
+		}
 	}
 	if rules.MaxFunctionParameters != nil {
 		rule := rules.MaxFunctionParameters
@@ -253,6 +274,9 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		}
 		if rule.Max != nil {
 			result.MaxFunctionParameters.Max = *rule.Max
+		}
+		if rule.Reason != nil {
+			result.MaxFunctionParameters.Reason = *rule.Reason
 		}
 	}
 
@@ -267,12 +291,18 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		if rule.MaxLength != nil {
 			result.SourceFileHeader.MaxLength = *rule.MaxLength
 		}
+		if rule.Reason != nil {
+			result.SourceFileHeader.Reason = *rule.Reason
+		}
 	}
 
 	if rules.SourceFileLines != nil {
 		rule := rules.SourceFileLines
 		if rule.Max != nil {
 			result.SourceFileLines.Max = *rule.Max
+		}
+		if rule.Reason != nil {
+			result.SourceFileLines.Reason = *rule.Reason
 		}
 	}
 
@@ -281,6 +311,9 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		if rule.Max != nil {
 			result.FunctionBodyLines.Max = *rule.Max
 		}
+		if rule.Reason != nil {
+			result.FunctionBodyLines.Reason = *rule.Reason
+		}
 	}
 
 	if rules.FunctionDocstring != nil {
@@ -288,12 +321,18 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		if rule.Policy != nil {
 			result.FunctionDocstring.Policy = *rule.Policy
 		}
+		if rule.Reason != nil {
+			result.FunctionDocstring.Reason = *rule.Reason
+		}
 	}
 
 	if rules.Format != nil {
 		rule := rules.Format
 		if rule.Enabled != nil {
 			result.Format.Enabled = *rule.Enabled
+		}
+		if rule.Reason != nil {
+			result.Format.Reason = *rule.Reason
 		}
 	}
 
@@ -320,12 +359,18 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		if rule.IgnorePatterns != nil {
 			result.Casing.IgnorePatterns = rule.IgnorePatterns
 		}
+		if rule.Reason != nil {
+			result.Casing.Reason = *rule.Reason
+		}
 	}
 
 	if rules.GithubActionsPinned != nil {
 		rule := rules.GithubActionsPinned
 		if rule.Enabled != nil {
 			result.GithubActionsPinned.Enabled = *rule.Enabled
+		}
+		if rule.Reason != nil {
+			result.GithubActionsPinned.Reason = *rule.Reason
 		}
 	}
 

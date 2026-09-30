@@ -192,6 +192,24 @@ languages:
         enabled: true
 ```
 
+Every rule block accepts an optional `reason` string explaining why the rule is
+enforced. It is appended to that rule's diagnostics so the developer (or coding
+agent) can fix the violation the intended way:
+
+```yaml
+rules:
+  max-function-parameters:
+    max: 3
+    reason: group related values in a struct instead of adding parameters
+```
+
+```text
+sample.go:3:6: VET001: rejected has 4 parameters; maximum allowed is 3 (reason: group related values in a struct instead of adding parameters)
+```
+
+A `languages.<language>.rules` block can override the reason, or clear it with
+`reason: ""`.
+
 When `-c` or `--config` is omitted, vet loads `vet.yaml` from the current
 directory if it exists.
 

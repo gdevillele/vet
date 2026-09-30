@@ -108,7 +108,7 @@ impl Analyzer {
         visitor.visit_file(&file);
         diagnostics.extend(visitor.diagnostics);
 
-        Ok(diagnostics)
+        Ok(self.with_reasons(diagnostics))
     }
 
     pub fn analyze_workflow_file(
@@ -125,7 +125,37 @@ impl Analyzer {
             diagnostics.extend(check_workflow_jobs(&request.path, document));
         }
 
-        Ok(diagnostics)
+        Ok(self.with_reasons(diagnostics))
+    }
+
+    /// Appends each rule's configured reason so developers know why the rule is enforced.
+    fn with_reasons(&self, mut diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
+        for diagnostic in &mut diagnostics {
+            let reason = self.reason(&diagnostic.rule_id).trim();
+            if !reason.is_empty() {
+                diagnostic.message = format!("{} (reason: {})", diagnostic.message, reason);
+            }
+        }
+        diagnostics
+    }
+
+    fn reason(&self, rule_id: &str) -> &str {
+        let config = &self.config;
+        match rule_id {
+            RULE_MAX_FUNCTION_PARAMETERS => &config.max_function_parameters.reason,
+            RULE_SOURCE_FILE_HEADER_REQUIRED
+            | RULE_SOURCE_FILE_HEADER_MIN
+            | RULE_SOURCE_FILE_HEADER_MAX => &config.source_file_header.reason,
+            RULE_SOURCE_FILE_LINES => &config.source_file_lines.reason,
+            RULE_FUNCTION_BODY_LINES => &config.function_body_lines.reason,
+            RULE_FUNCTION_DOCSTRING => &config.function_docstring.reason,
+            RULE_SOURCE_FORMAT => &config.format.reason,
+            RULE_FUNCTION_CASING | RULE_VARIABLE_CASING | RULE_TYPE_CASING
+            | RULE_CONSTANT_CASING => &config.casing.reason,
+            RULE_GITHUB_ACTIONS_PINNED => &config.github_actions_pinned.reason,
+            RULE_NO_COMMENTS => &config.no_comments.reason,
+            _ => "",
+        }
     }
 
     fn check_comments(&self, path: &str, source: &str) -> Vec<Diagnostic> {

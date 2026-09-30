@@ -135,7 +135,7 @@ func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) ([]diagnostic.Diagnost
 		return true
 	})
 
-	return diagnostics, nil
+	return a.withReasons(diagnostics), nil
 }
 
 func (a Analyzer) checkFormat(request formatCheck) []diagnostic.Diagnostic {

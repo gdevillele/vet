@@ -42,24 +42,29 @@ public struct VetConfig: Equatable {
 public struct MaxFunctionParametersRule: Equatable {
     public var enabled: Bool
     public var max: Int
+    public var reason = ""
 }
 
 public struct NoCommentsRule: Equatable {
     public var enabled: Bool
+    public var reason = ""
 }
 
 public struct SourceFileHeaderRule: Equatable {
     public var required: Bool
     public var minLength: Int
     public var maxLength: Int
+    public var reason = ""
 }
 
 public struct SourceFileLinesRule: Equatable {
     public var max: Int
+    public var reason = ""
 }
 
 public struct FunctionBodyLinesRule: Equatable {
     public var max: Int
+    public var reason = ""
 }
 
 public enum FunctionDocstringPolicy: String, Codable, Equatable {
@@ -70,10 +75,12 @@ public enum FunctionDocstringPolicy: String, Codable, Equatable {
 
 public struct FunctionDocstringRule: Equatable {
     public var policy: FunctionDocstringPolicy
+    public var reason = ""
 }
 
 public struct FormatRule: Equatable {
     public var enabled: Bool
+    public var reason = ""
 }
 
 public enum CasingStyle: String, Codable, Equatable {
@@ -93,10 +100,12 @@ public struct CasingRule: Equatable {
     public var constants: CasingStyle
     public var ignoreNames: [String]
     public var ignorePatterns: [String]
+    public var reason = ""
 }
 
 public struct GithubActionsPinnedRule: Equatable {
     public var enabled: Bool
+    public var reason = ""
 }
 
 public struct FileSelection: Equatable {
@@ -197,10 +206,12 @@ struct RulesFile: Decodable {
 struct MaxFunctionParametersFile: Decodable {
     let enabled: Bool?
     let max: Int?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled
         case max
+        case reason
     }
 
     init(from decoder: Decoder) throws {
@@ -208,20 +219,24 @@ struct MaxFunctionParametersFile: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
         max = try container.decodeIfPresent(Int.self, forKey: .max)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
 struct NoCommentsFile: Decodable {
     let enabled: Bool?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled
+        case reason
     }
 
     init(from decoder: Decoder) throws {
         try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
@@ -229,11 +244,13 @@ struct SourceFileHeaderFile: Decodable {
     let required: Bool?
     let minLength: Int?
     let maxLength: Int?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case required
         case minLength = "min-length"
         case maxLength = "max-length"
+        case reason
     }
 
     init(from decoder: Decoder) throws {
@@ -242,62 +259,75 @@ struct SourceFileHeaderFile: Decodable {
         required = try container.decodeIfPresent(Bool.self, forKey: .required)
         minLength = try container.decodeIfPresent(Int.self, forKey: .minLength)
         maxLength = try container.decodeIfPresent(Int.self, forKey: .maxLength)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
 struct SourceFileLinesFile: Decodable {
     let max: Int?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case max
+        case reason
     }
 
     init(from decoder: Decoder) throws {
         try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
         let container = try decoder.container(keyedBy: CodingKeys.self)
         max = try container.decodeIfPresent(Int.self, forKey: .max)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
 struct FunctionBodyLinesFile: Decodable {
     let max: Int?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case max
+        case reason
     }
 
     init(from decoder: Decoder) throws {
         try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
         let container = try decoder.container(keyedBy: CodingKeys.self)
         max = try container.decodeIfPresent(Int.self, forKey: .max)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
 struct FunctionDocstringFile: Decodable {
     let policy: FunctionDocstringPolicy?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case policy
+        case reason
     }
 
     init(from decoder: Decoder) throws {
         try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
         let container = try decoder.container(keyedBy: CodingKeys.self)
         policy = try container.decodeIfPresent(FunctionDocstringPolicy.self, forKey: .policy)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
 struct FormatFile: Decodable {
     let enabled: Bool?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled
+        case reason
     }
 
     init(from decoder: Decoder) throws {
         try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
@@ -309,6 +339,7 @@ struct CasingFile: Decodable {
     let constants: CasingStyle?
     let ignoreNames: [String]?
     let ignorePatterns: [String]?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled
@@ -318,6 +349,7 @@ struct CasingFile: Decodable {
         case constants
         case ignoreNames = "ignore-names"
         case ignorePatterns = "ignore-patterns"
+        case reason
     }
 
     init(from decoder: Decoder) throws {
@@ -330,14 +362,17 @@ struct CasingFile: Decodable {
         constants = try container.decodeIfPresent(CasingStyle.self, forKey: .constants)
         ignoreNames = try container.decodeIfPresent([String].self, forKey: .ignoreNames)
         ignorePatterns = try container.decodeIfPresent([String].self, forKey: .ignorePatterns)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
 struct GithubActionsPinnedFile: Decodable {
     let enabled: Bool?
+    let reason: String?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case enabled
+        case reason
     }
 
     init(from decoder: Decoder) throws {
@@ -347,6 +382,7 @@ struct GithubActionsPinnedFile: Decodable {
         )
         let container = try decoder.container(keyedBy: CodingKeys.self)
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 
@@ -460,6 +496,9 @@ public enum ConfigLoader {
             if let max = rule.max {
                 result.maxFunctionParameters.max = max
             }
+            if let reason = rule.reason {
+                result.maxFunctionParameters.reason = reason
+            }
         }
 
         if let rule = rules.sourceFileHeader {
@@ -472,11 +511,17 @@ public enum ConfigLoader {
             if let maxLength = rule.maxLength {
                 result.sourceFileHeader.maxLength = maxLength
             }
+            if let reason = rule.reason {
+                result.sourceFileHeader.reason = reason
+            }
         }
 
         if let rule = rules.sourceFileLines {
             if let max = rule.max {
                 result.sourceFileLines.max = max
+            }
+            if let reason = rule.reason {
+                result.sourceFileLines.reason = reason
             }
         }
 
@@ -484,17 +529,26 @@ public enum ConfigLoader {
             if let max = rule.max {
                 result.functionBodyLines.max = max
             }
+            if let reason = rule.reason {
+                result.functionBodyLines.reason = reason
+            }
         }
 
         if let rule = rules.functionDocstring {
             if let policy = rule.policy {
                 result.functionDocstring.policy = policy
             }
+            if let reason = rule.reason {
+                result.functionDocstring.reason = reason
+            }
         }
 
         if let rule = rules.format {
             if let enabled = rule.enabled {
                 result.format.enabled = enabled
+            }
+            if let reason = rule.reason {
+                result.format.reason = reason
             }
         }
 
@@ -520,17 +574,26 @@ public enum ConfigLoader {
             if let ignorePatterns = rule.ignorePatterns {
                 result.casing.ignorePatterns = ignorePatterns
             }
+            if let reason = rule.reason {
+                result.casing.reason = reason
+            }
         }
 
         if let rule = rules.noComments {
             if let enabled = rule.enabled {
                 result.noComments.enabled = enabled
             }
+            if let reason = rule.reason {
+                result.noComments.reason = reason
+            }
         }
 
         if let rule = rules.githubActionsPinned {
             if let enabled = rule.enabled {
                 result.githubActionsPinned.enabled = enabled
+            }
+            if let reason = rule.reason {
+                result.githubActionsPinned.reason = reason
             }
         }
 

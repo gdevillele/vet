@@ -173,3 +173,39 @@ func TestValidateRejectsInvertedHeaderBounds(t *testing.T) {
 		t.Fatalf("expected validation error")
 	}
 }
+
+func TestLoadFileAppliesRuleReasons(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vet.yaml")
+	data := []byte(`version: 1
+rules:
+  source-file-header:
+    reason: headers carry the license notice
+  format:
+    reason: keep diffs small
+languages:
+  cpp:
+    rules:
+      format:
+        reason: ""
+`)
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cfg, err := LoadFile(LoadFileRequest{
+		Path:     path,
+		Base:     Default(),
+		Language: "cpp",
+	})
+	if err != nil {
+		t.Fatalf("LoadFile returned error: %v", err)
+	}
+
+	if cfg.SourceFileHeader.Reason != "headers carry the license notice" {
+		t.Fatalf("expected top-level reason to load, got %q", cfg.SourceFileHeader.Reason)
+	}
+	if cfg.Format.Reason != "" {
+		t.Fatalf("expected cpp override to clear format reason, got %q", cfg.Format.Reason)
+	}
+}
