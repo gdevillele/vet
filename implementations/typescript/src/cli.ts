@@ -17,6 +17,7 @@ import {
   sortDiagnostics,
   type Diagnostic,
 } from "./diagnostic.js";
+import { withReasons } from "./reason.js";
 import { analyzeWorkflowFile } from "./workflow.js";
 
 export const VERSION = "0.1.0-dev";
@@ -372,7 +373,7 @@ export async function run(invocation: Invocation): Promise<number> {
     }
   }
 
-  const sorted = sortDiagnostics(diagnostics);
+  const sorted = sortDiagnostics(withReasons(cfg, diagnostics));
   const format = visited.has("format")
     ? String(flags.format ?? "text")
     : "text";

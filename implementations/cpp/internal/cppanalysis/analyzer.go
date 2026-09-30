@@ -63,7 +63,7 @@ func (a Analyzer) AnalyzeFile(request AnalyzeFileRequest) ([]diagnostic.Diagnost
 		return nil, err
 	}
 	diagnostics = append(diagnostics, comments...)
-	return diagnostics, nil
+	return a.withReasons(diagnostics), nil
 }
 
 func (a Analyzer) checkSourceFileLines(path string, source string) []diagnostic.Diagnostic {

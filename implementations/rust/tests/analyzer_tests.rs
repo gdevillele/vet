@@ -416,3 +416,45 @@ jobs:
         assert!(diagnostics.is_empty(), "{name}: {diagnostics:#?}");
     }
 }
+
+#[test]
+fn appends_configured_rule_reason() {
+    let mut config = Config::default();
+    config.max_function_parameters.reason = " wrap related values in a struct \n".to_string();
+    config.source_file_header.required = true;
+
+    let diagnostics = analyze(config, "fn rejected(left: i32, right: i32) {}\n");
+
+    let message = |rule_id| {
+        diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.rule_id == rule_id)
+            .map(|diagnostic| diagnostic.message.as_str())
+    };
+    assert_eq!(
+        message(RULE_MAX_FUNCTION_PARAMETERS),
+        Some("rejected has 2 parameters; maximum allowed is 1 (reason: wrap related values in a struct)")
+    );
+    assert_eq!(
+        message(RULE_SOURCE_FILE_HEADER_REQUIRED),
+        Some("source file has no header")
+    );
+}
+
+#[test]
+fn appends_configured_workflow_rule_reason() {
+    let mut config = Config::default();
+    config.github_actions_pinned.enabled = true;
+    config.github_actions_pinned.reason = "tags can be moved to malicious commits".to_string();
+
+    let diagnostics = analyze_workflow(
+        config,
+        "jobs:\n  test:\n    steps:\n      - uses: actions/checkout@v4\n",
+    );
+
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:#?}");
+    assert_eq!(
+        diagnostics[0].message,
+        "GitHub action \"actions/checkout@v4\" must be pinned to a full-length commit SHA (reason: tags can be moved to malicious commits)"
+    );
+}

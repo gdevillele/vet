@@ -285,3 +285,38 @@ fn load_config(path: impl AsRef<std::path::Path>) -> Result<Config, config::Conf
         language: None,
     })
 }
+
+#[test]
+fn load_file_applies_rule_reasons() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("vet.yaml");
+    fs::write(
+        &path,
+        r#"version: 1
+rules:
+  max-function-parameters:
+    reason: group related values
+  casing:
+    reason: match the team style guide
+languages:
+  rust:
+    rules:
+      casing:
+        reason: ""
+"#,
+    )
+    .unwrap();
+
+    let config = config::load_file(LoadFileRequest {
+        path: path_string(&path),
+        base: Config::default(),
+        language: Some("rust".to_string()),
+    })
+    .unwrap();
+
+    assert_eq!(
+        config.max_function_parameters.reason,
+        "group related values"
+    );
+    assert_eq!(config.casing.reason, "");
+}

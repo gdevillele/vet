@@ -3,6 +3,8 @@ rules:
   max-function-parameters:
     enabled: true
     max: 1
+    # Optional on every rule: appended to its diagnostics to explain why it is enforced.
+    reason: group related values in a struct instead of adding parameters
   source-file-header:
     required: true
     min-length: 40

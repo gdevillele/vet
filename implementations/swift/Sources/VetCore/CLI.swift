@@ -201,6 +201,7 @@ public enum CLI {
             }
         }
 
+        diagnostics = diagnostics.map(config.withReason)
         diagnostics.sort { left, right in
             diagnosticComesBefore(DiagnosticSortRequest(left: left, right: right))
         }

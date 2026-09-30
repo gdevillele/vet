@@ -60,7 +60,7 @@ func (a Analyzer) AnalyzeWorkflowFile(request AnalyzeWorkflowFileRequest) ([]dia
 		}
 	}
 
-	return diagnostics, nil
+	return a.withReasons(diagnostics), nil
 }
 
 func yamlDocumentRoot(node *yaml.Node) *yaml.Node {

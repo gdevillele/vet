@@ -289,3 +289,39 @@ func TestValidateRejectsInvalidCasingConfig(t *testing.T) {
 		t.Fatalf("expected Validate to reject invalid casing ignore pattern")
 	}
 }
+
+func TestLoadFileAppliesRuleReasons(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vet.yaml")
+	data := []byte(`version: 1
+rules:
+  max-function-parameters:
+    reason: group related values
+  casing:
+    reason: match the team style guide
+languages:
+  go:
+    rules:
+      casing:
+        reason: ""
+`)
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	cfg, err := LoadFile(LoadFileRequest{
+		Path:     path,
+		Base:     Default(),
+		Language: "go",
+	})
+	if err != nil {
+		t.Fatalf("LoadFile returned error: %v", err)
+	}
+
+	if cfg.MaxFunctionParameters.Reason != "group related values" {
+		t.Fatalf("expected top-level reason to load, got %q", cfg.MaxFunctionParameters.Reason)
+	}
+	if cfg.Casing.Reason != "" {
+		t.Fatalf("expected go override to clear casing reason, got %q", cfg.Casing.Reason)
+	}
+}

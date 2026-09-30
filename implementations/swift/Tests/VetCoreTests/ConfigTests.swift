@@ -278,6 +278,33 @@ final class ConfigTests: XCTestCase {
         ]))
     }
 
+    func testLoadFileAppliesRuleReasons() throws {
+        let configPath = temporaryDirectory().appendingPathComponent("vet.yaml")
+        let yaml = """
+        version: 1
+        rules:
+          source-file-header:
+            reason: headers carry the license notice
+          format:
+            reason: keep diffs small
+        languages:
+          swift:
+            rules:
+              format:
+                reason: ""
+        """
+        try yaml.write(to: configPath, atomically: true, encoding: .utf8)
+
+        let config = try ConfigLoader.load(ConfigLoadRequest(
+            path: configPath.path,
+            base: .default(),
+            language: "swift"
+        ))
+
+        XCTAssertEqual(config.sourceFileHeader.reason, "headers carry the license notice")
+        XCTAssertEqual(config.format.reason, "")
+    }
+
     private func temporaryDirectory() -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

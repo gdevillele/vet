@@ -693,6 +693,45 @@ final class CLITests: XCTestCase {
         XCTAssertEqual(diagnostics[1]["file"] as? String, second.path)
     }
 
+    func testRunAppendsRuleReasonToMessage() throws {
+        let directory = temporaryDirectory()
+        try "let one = 1\nlet two = 2\n".write(
+            to: directory.appendingPathComponent("sample.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let configPath = directory.appendingPathComponent("vet.yaml")
+        let yaml = """
+        version: 1
+        rules:
+          source-file-header:
+            required: true
+            reason: " headers carry the license notice "
+          max-source-file-lines:
+            max: 1
+          format:
+            enabled: false
+        """
+        try yaml.write(to: configPath, atomically: true, encoding: .utf8)
+
+        var stdout = ""
+        var stderr = ""
+        let code = CLI.run(CLIInvocation(
+            arguments: ["--config", configPath.path, "--format", "json", directory.path],
+            stdout: { stdout += $0 },
+            stderr: { stderr += $0 }
+        ))
+
+        XCTAssertEqual(code, 1, stderr)
+        let messages = Dictionary(
+            uniqueKeysWithValues: try JSONDecoder()
+                .decode([String: [Diagnostic]].self, from: Data(stdout.utf8))["diagnostics", default: []]
+                .map { ($0.ruleID, $0.message) }
+        )
+        XCTAssertEqual(messages[RuleID.sourceFileHeaderRequired], "source file has no header (reason: headers carry the license notice)")
+        XCTAssertEqual(messages[RuleID.sourceFileLines], "source file has 2 lines; maximum allowed is 1")
+    }
+
     private func temporaryDirectory() -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

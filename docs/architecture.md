@@ -188,3 +188,13 @@ directives and documentation, are checked. C/C++ delegates to
 `clang -fsyntax-only -Xclang -dump-raw-tokens` on the supplied source, without
 preprocessing includes or dropping inactive branches; missing/failing Clang is
 an error only when this rule is enabled.
+
+## Rule Reasons
+
+Every rule block in `vet.yaml` accepts an optional `reason` string. It does not
+change what a rule checks; it tells the developer why the rule is active so the
+violation gets fixed the intended way. When set, runners append
+` (reason: <text>)` to the built-in message of every diagnostic that block
+emits (for example, `casing` covers `VET010`–`VET013`). Surrounding whitespace
+is trimmed, and a blank value adds nothing. Language blocks override the
+top-level reason like any other rule field.
