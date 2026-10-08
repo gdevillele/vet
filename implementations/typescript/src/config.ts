@@ -340,7 +340,9 @@ export function loadConfigFile(options: {
   }
 
   const overridden = Object.entries(document.languages ?? {})
-    .filter(([, language]) => language?.rules?.["forbidden-files"] !== undefined)
+    .filter(
+      ([, language]) => language?.rules?.["forbidden-files"] !== undefined,
+    )
     .map(([name]) => name)
     .sort();
   if (overridden.length > 0) {

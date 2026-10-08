@@ -82,7 +82,10 @@ function parseArgs(args: string[]): {
             name === "version"
           ) {
             // peek: if next looks like value for non-bool, leave it
-            if (name === "check-format" && (next === "true" || next === "false")) {
+            if (
+              name === "check-format" &&
+              (next === "true" || next === "false")
+            ) {
               value = next;
               i++;
             } else {
@@ -184,7 +187,9 @@ export async function run(invocation: Invocation): Promise<number> {
   try {
     parsed = parseArgs(invocation.args);
   } catch (err) {
-    invocation.stderr.write(`vet: ${err instanceof Error ? err.message : String(err)}\n`);
+    invocation.stderr.write(
+      `vet: ${err instanceof Error ? err.message : String(err)}\n`,
+    );
     return 2;
   }
 
@@ -340,7 +345,10 @@ export async function run(invocation: Invocation): Promise<number> {
       return 2;
     }
     try {
-      const fileDiagnostics = await analyzer.analyzeFile({ path: file, source });
+      const fileDiagnostics = await analyzer.analyzeFile({
+        path: file,
+        source,
+      });
       diagnostics.push(...fileDiagnostics);
     } catch (err) {
       invocation.stderr.write(
@@ -423,7 +431,9 @@ export async function run(invocation: Invocation): Promise<number> {
   } else if (format === "json") {
     invocation.stdout.write(renderJSON(sorted));
   } else {
-    invocation.stderr.write(`vet: unsupported format ${JSON.stringify(format)}\n`);
+    invocation.stderr.write(
+      `vet: unsupported format ${JSON.stringify(format)}\n`,
+    );
     return 2;
   }
 

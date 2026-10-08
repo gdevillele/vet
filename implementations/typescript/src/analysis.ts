@@ -27,7 +27,9 @@ export class Analyzer {
     source: string;
   }): Promise<Diagnostic[]> {
     const diagnostics: Diagnostic[] = [];
-    diagnostics.push(...this.checkSourceFileLines(options.path, options.source));
+    diagnostics.push(
+      ...this.checkSourceFileLines(options.path, options.source),
+    );
     diagnostics.push(
       ...(await checkFormat({
         path: options.path,
@@ -131,7 +133,10 @@ export class Analyzer {
       if (!rule.required) {
         return [];
       }
-      const { line, column } = offsetToLineColumn(source, header.firstCodeOffset);
+      const { line, column } = offsetToLineColumn(
+        source,
+        header.firstCodeOffset,
+      );
       return [
         diagnostic(
           RULE_SOURCE_FILE_HEADER_REQUIRED,
@@ -221,7 +226,11 @@ export class Analyzer {
           }
         }
 
-        if (!isLiteral || ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node)) {
+        if (
+          !isLiteral ||
+          ts.isFunctionDeclaration(node) ||
+          ts.isMethodDeclaration(node)
+        ) {
           // Docstring applies to named declarations (not pure function literals).
           if (
             (ts.isFunctionDeclaration(node) && node.name) ||
@@ -289,8 +298,7 @@ export class Analyzer {
       if (ignored(name) || name === "_") {
         return;
       }
-      const effective =
-        style === "language-default" ? languageDefault : style;
+      const effective = style === "language-default" ? languageDefault : style;
       if (effective === "off") {
         return;
       }
@@ -322,7 +330,11 @@ export class Analyzer {
           node.name,
         );
       }
-      if (ts.isMethodDeclaration(node) && node.name && ts.isIdentifier(node.name)) {
+      if (
+        ts.isMethodDeclaration(node) &&
+        node.name &&
+        ts.isIdentifier(node.name)
+      ) {
         check(
           node.name.text,
           this.config.casing.functions,
@@ -469,7 +481,9 @@ function bodyLineCount(
     // Concise arrow body: single expression — count as 1 physical line of body.
     return 1;
   }
-  const start = sourceFile.getLineAndCharacterOfPosition(node.body.getStart(sourceFile)).line;
+  const start = sourceFile.getLineAndCharacterOfPosition(
+    node.body.getStart(sourceFile),
+  ).line;
   const end = sourceFile.getLineAndCharacterOfPosition(node.body.end).line;
   // Exclude opening and closing brace lines.
   const count = end - start - 1;
