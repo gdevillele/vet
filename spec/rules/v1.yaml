@@ -403,3 +403,37 @@ rules:
       - Uses Go parser comments, TypeScript compiler token trivia, the Rust compiler lexer, SwiftSyntax trivia, and Clang raw tokens.
       - C/C++ requires clang only when enabled, needs no build configuration or include dependencies, and scans inactive preprocessor branches too. Missing or failing clang is an error.
       - Existing file discovery and exclusions apply unchanged.
+  VET016:
+    name: forbidden-files
+    default_severity: error
+    default_config:
+      enabled: false
+      patterns: []
+      exclude: []
+    language_compatibility:
+      go:
+        status: compatible
+        implementation: implemented
+      rust:
+        status: compatible
+        implementation: implemented
+      swift:
+        status: compatible
+        implementation: implemented
+      cpp:
+        status: compatible
+        implementation: implemented
+      typescript:
+        status: compatible
+        implementation: implemented
+    summary: Files whose repository paths match a configured pattern are forbidden when enabled.
+    notes:
+      - The rule is opt-in, and enabling it with no patterns checks nothing. It bans files by path only and never reads file contents, so shebang lines are not checked.
+      - Configured only under top-level rules.forbidden-files with enabled, patterns, exclude, and reason. Each runner rejects forbidden-files under languages.<lang>.rules with a config error.
+      - CLI flag --forbidden-files overrides rules.forbidden-files.enabled and accepts =false. Patterns come only from the config file.
+      - The rule is repo-wide, not per language. With no CLI paths it walks the whole tree from the working directory, like VET014 does for workflows. With CLI paths it walks only those paths. languages.<lang>.files and languages.<lang>.exclude do not apply.
+      - Any path with a .git segment is skipped. Directory symlink cycles are visited once. Broken or looping symlinks are matched by name and never followed.
+      - patterns and exclude reuse each runner's languages.<lang>.exclude glob matcher on slash-separated paths relative to the working directory. A file is reported when it matches a pattern and matches no exclude entry. Empty pattern or exclude strings are a config error.
+      - The TypeScript exclude matcher is looser than the others. Its ** suffix patterns are not anchored at a path segment, so **/requirements*.txt also matches myrequirements.txt, and its dir/** prefixes also match nested dir/ segments. The conformance fixture behaves the same in every runner.
+      - Emits one VET016 diagnostic per matching file at line 1, column 1, with message file type is forbidden (matches "<pattern>"), where <pattern> is the first matching entry in config order.
+      - Every runner implements the same file walk, so a repository that runs several runners gets one VET016 diagnostic per matching file from each runner.

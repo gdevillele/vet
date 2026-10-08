@@ -15,7 +15,7 @@ export function isTypeScriptFile(filePath: string): boolean {
   return true;
 }
 
-function matchesExclude(filePath: string, patterns: string[]): boolean {
+export function matchesExclude(filePath: string, patterns: string[]): boolean {
   const normalized = filePath.replaceAll("\\", "/");
   const base = path.basename(normalized);
   for (const pattern of patterns) {
@@ -221,5 +221,99 @@ export function collectWorkflowFiles(options: {
   }
 
   addWorkflowDir(path.join(cwd, ".github", "workflows"), seen, files);
+  return files.sort();
+}
+
+function hasGitSegment(filePath: string): boolean {
+  return filePath.replaceAll("\\", "/").split("/").includes(".git");
+}
+
+/**
+ * Collect every file under the given paths for VET016, relative to cwd as given.
+ * Entries named .git are skipped, directory symlink cycles are visited once,
+ * and broken or looping symlinks are kept by name without being followed.
+ */
+export function collectForbiddenFileCandidates(options: {
+  paths: string[];
+  cwd: string;
+}): string[] {
+  const seenFiles = new Set<string>();
+  const seenDirs = new Set<string>();
+  const files: string[] = [];
+  const resolve = (filePath: string) => path.resolve(options.cwd, filePath);
+
+  const addFile = (filePath: string) => {
+    if (!seenFiles.has(filePath)) {
+      seenFiles.add(filePath);
+      files.push(filePath);
+    }
+  };
+
+  const addDir = (dir: string) => {
+    const real = fs.realpathSync(resolve(dir));
+    if (seenDirs.has(real)) {
+      return;
+    }
+    seenDirs.add(real);
+    for (const entry of fs.readdirSync(resolve(dir), { withFileTypes: true })) {
+      if (entry.name === ".git") {
+        continue;
+      }
+      const child = path.join(dir, entry.name);
+      let stat: fs.Stats;
+      try {
+        stat = fs.statSync(resolve(child));
+      } catch (err) {
+        if (!entry.isSymbolicLink()) {
+          throw err;
+        }
+        addFile(child);
+        continue;
+      }
+      if (stat.isDirectory()) {
+        addDir(child);
+      } else {
+        addFile(child);
+      }
+    }
+  };
+
+  const addExplicitPath = (target: string) => {
+    if (hasGitSegment(target)) {
+      return;
+    }
+    if (/[*?[]/.test(target)) {
+      const dir = path.dirname(target);
+      const re = new RegExp(
+        `^${path
+          .basename(target)
+          .replace(/[.+^${}()|\\]/g, "\\$&")
+          .replaceAll("*", "[^/]*")
+          .replaceAll("?", "[^/]")}$`,
+      );
+      const matches = fs.existsSync(resolve(dir))
+        ? fs.readdirSync(resolve(dir)).filter((name) => re.test(name))
+        : [];
+      if (matches.length === 0) {
+        throw new Error(`pattern matched no files: ${target}`);
+      }
+      for (const name of matches) {
+        addExplicitPath(path.join(dir, name));
+      }
+      return;
+    }
+    if (fs.statSync(resolve(target)).isDirectory()) {
+      addDir(target);
+    } else {
+      addFile(target);
+    }
+  };
+
+  for (const raw of options.paths) {
+    const target =
+      raw === "..." ? "." : raw.endsWith("/...") ? raw.slice(0, -4) || "." : raw;
+    addExplicitPath(target);
+  }
+
   return files.sort();
 }

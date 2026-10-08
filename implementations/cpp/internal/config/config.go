@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -21,6 +23,7 @@ type Config struct {
 	Format                FormatRule
 	Casing                CasingRule
 	GithubActionsPinned   GithubActionsPinnedRule
+	ForbiddenFiles        ForbiddenFilesRule
 	FileSelection         FileSelection
 }
 
@@ -97,6 +100,13 @@ type GithubActionsPinnedRule struct {
 	Reason  string
 }
 
+type ForbiddenFilesRule struct {
+	Enabled  bool
+	Patterns []string
+	Exclude  []string
+	Reason   string
+}
+
 type FileSelection struct {
 	Files   []string
 	Exclude []string
@@ -130,6 +140,7 @@ type rulesFile struct {
 	Format                *formatFile                `yaml:"format"`
 	Casing                *casingFile                `yaml:"casing"`
 	GithubActionsPinned   *githubActionsPinnedFile   `yaml:"github-actions-pinned"`
+	ForbiddenFiles        *forbiddenFilesFile        `yaml:"forbidden-files"`
 }
 
 type maxFunctionParametersFile struct {
@@ -186,6 +197,13 @@ type githubActionsPinnedFile struct {
 	Reason  *string `yaml:"reason"`
 }
 
+type forbiddenFilesFile struct {
+	Enabled  *bool    `yaml:"enabled"`
+	Patterns []string `yaml:"patterns"`
+	Exclude  []string `yaml:"exclude"`
+	Reason   *string  `yaml:"reason"`
+}
+
 func Default() Config {
 	return Config{
 		// VET001 is unimplemented for C/C++; keep it disabled so a zero-flag
@@ -219,6 +237,9 @@ func Default() Config {
 			Constants: CasingLanguageDefault,
 		},
 		GithubActionsPinned: GithubActionsPinnedRule{
+			Enabled: false,
+		},
+		ForbiddenFiles: ForbiddenFilesRule{
 			Enabled: false,
 		},
 	}
@@ -271,6 +292,10 @@ func LoadFile(request LoadFileRequest) (Config, error) {
 
 	if document.Version != nil && *document.Version != 1 {
 		return request.Base, fmt.Errorf("config %q uses unsupported version %d", request.Path, *document.Version)
+	}
+
+	if err := rejectLanguageForbiddenFiles(document.Languages); err != nil {
+		return request.Base, fmt.Errorf("config %q: %w", request.Path, err)
 	}
 
 	result := applyRules(request.Base, document.Rules)
@@ -408,7 +433,37 @@ func applyRules(cfg Config, rules rulesFile) Config {
 		}
 	}
 
+	if rules.ForbiddenFiles != nil {
+		rule := rules.ForbiddenFiles
+		if rule.Enabled != nil {
+			result.ForbiddenFiles.Enabled = *rule.Enabled
+		}
+		if rule.Patterns != nil {
+			result.ForbiddenFiles.Patterns = rule.Patterns
+		}
+		if rule.Exclude != nil {
+			result.ForbiddenFiles.Exclude = rule.Exclude
+		}
+		if rule.Reason != nil {
+			result.ForbiddenFiles.Reason = *rule.Reason
+		}
+	}
+
 	return result
+}
+
+func rejectLanguageForbiddenFiles(languages map[string]languageFile) error {
+	names := make([]string, 0, len(languages))
+	for name, language := range languages {
+		if language.Rules.ForbiddenFiles != nil {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	return fmt.Errorf("languages.%s.rules.forbidden-files is not supported; forbidden-files is repo-wide and must be set under top-level rules", names[0])
 }
 
 func Validate(cfg Config) error {
@@ -450,6 +505,16 @@ func Validate(cfg Config) error {
 	for _, pattern := range cfg.Casing.IgnorePatterns {
 		if _, err := regexp.Compile(pattern); err != nil {
 			return fmt.Errorf("casing.ignore-patterns contains invalid regex %q: %w", pattern, err)
+		}
+	}
+	for _, pattern := range cfg.ForbiddenFiles.Patterns {
+		if strings.TrimSpace(pattern) == "" {
+			return fmt.Errorf("forbidden-files.patterns must not contain empty patterns")
+		}
+	}
+	for _, pattern := range cfg.ForbiddenFiles.Exclude {
+		if strings.TrimSpace(pattern) == "" {
+			return fmt.Errorf("forbidden-files.exclude must not contain empty patterns")
 		}
 	}
 

@@ -36,6 +36,12 @@ export interface Config {
     reason?: string;
   };
   githubActionsPinned: { enabled: boolean; reason?: string };
+  forbiddenFiles: {
+    enabled: boolean;
+    patterns: string[];
+    exclude: string[];
+    reason?: string;
+  };
   fileSelection: { files: string[]; exclude: string[] };
 }
 
@@ -65,6 +71,7 @@ export function defaultConfig(): Config {
       ignorePatterns: [],
     },
     githubActionsPinned: { enabled: false },
+    forbiddenFiles: { enabled: false, patterns: [], exclude: [] },
     fileSelection: { files: [], exclude: [] },
   };
 }
@@ -100,6 +107,12 @@ interface RulesFile {
     reason?: string;
   };
   "github-actions-pinned"?: { enabled?: boolean; reason?: string };
+  "forbidden-files"?: {
+    enabled?: boolean;
+    patterns?: string[];
+    exclude?: string[];
+    reason?: string;
+  };
 }
 
 const RULE_FIELDS: Record<
@@ -115,6 +128,7 @@ const RULE_FIELDS: Record<
   format: "format",
   casing: "casing",
   "github-actions-pinned": "githubActionsPinned",
+  "forbidden-files": "forbiddenFiles",
 };
 
 interface FileConfig {
@@ -201,6 +215,19 @@ function applyRules(cfg: Config, rules: RulesFile | undefined): Config {
     result.githubActionsPinned.enabled = rules["github-actions-pinned"].enabled;
   }
 
+  const forbidden = rules["forbidden-files"];
+  if (forbidden) {
+    if (forbidden.enabled !== undefined) {
+      result.forbiddenFiles.enabled = forbidden.enabled;
+    }
+    if (forbidden.patterns !== undefined) {
+      result.forbiddenFiles.patterns = forbidden.patterns;
+    }
+    if (forbidden.exclude !== undefined) {
+      result.forbiddenFiles.exclude = forbidden.exclude;
+    }
+  }
+
   for (const [key, field] of Object.entries(RULE_FIELDS)) {
     const reason = rules[key as keyof RulesFile]?.reason;
     if (reason !== undefined) {
@@ -272,6 +299,22 @@ export function validate(cfg: Config): void {
       );
     }
   }
+  for (const [field, patterns] of [
+    ["forbidden-files.patterns", cfg.forbiddenFiles.patterns],
+    ["forbidden-files.exclude", cfg.forbiddenFiles.exclude],
+  ] as const) {
+    if (!Array.isArray(patterns)) {
+      throw new Error(`${field} must be a list of strings`);
+    }
+    for (const pattern of patterns) {
+      if (typeof pattern !== "string") {
+        throw new Error(`${field} must be a list of strings`);
+      }
+      if (pattern.trim() === "") {
+        throw new Error(`${field} must not contain empty patterns`);
+      }
+    }
+  }
   for (const pattern of cfg.casing.ignorePatterns) {
     try {
       new RegExp(pattern);
@@ -293,6 +336,16 @@ export function loadConfigFile(options: {
   if (document.version !== undefined && document.version !== 1) {
     throw new Error(
       `config ${JSON.stringify(options.path)} uses unsupported version ${document.version}`,
+    );
+  }
+
+  const overridden = Object.entries(document.languages ?? {})
+    .filter(([, language]) => language?.rules?.["forbidden-files"] !== undefined)
+    .map(([name]) => name)
+    .sort();
+  if (overridden.length > 0) {
+    throw new Error(
+      `config ${JSON.stringify(options.path)}: languages.${overridden[0]}.rules.forbidden-files is not supported; forbidden-files is repo-wide and must be set under top-level rules`,
     );
   }
 

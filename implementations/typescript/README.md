@@ -38,6 +38,7 @@ Uses the **TypeScript compiler API** for structural analysis and **Prettier** fo
 | VET008 | Prettier format check (`prettier.format`) |
 | VET010–VET013 | identifier casing (opt-in) |
 | VET014 | GitHub Actions pin check |
+| VET016 | forbidden files by path pattern (opt-in, repo-wide; `--forbidden-files`) |
 
 Language defaults for casing: `camelCase` functions/variables/constants,
 `UpperCamelCase` types.

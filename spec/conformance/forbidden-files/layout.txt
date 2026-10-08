@@ -1,0 +1,11 @@
+# Each runner's test builds this tree in a temporary directory and runs vet
+# there with vet.yaml and no paths. The tree is not committed because git
+# cannot store .git/ paths and a real symlink loop would trap other tools.
+# "file <path>" creates an empty file; "symlink <path> <target>" creates a symlink.
+file pyproject.toml
+file tools/gen/nested/build.py
+file tools/gen/nested/build.py.txt
+file docs/notes.md
+file design/archive/legacy/old.py
+file .git/hooks/pre-commit.py
+symlink tools/gen/nested/loop ../..

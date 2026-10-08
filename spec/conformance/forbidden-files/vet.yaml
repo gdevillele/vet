@@ -1,0 +1,7 @@
+version: 1
+rules:
+  forbidden-files:
+    enabled: true
+    patterns: ["**/*.py", "**/*.pyi", "**/*.pyw", "**/*.ipynb", "**/pyproject.toml", "**/requirements*.txt"]
+    exclude: ["design/archive/**"]
+    reason: "Use Go for tooling and checks"

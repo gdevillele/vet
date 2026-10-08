@@ -8,4 +8,5 @@ export {
 } from "./config.js";
 export type { Diagnostic } from "./diagnostic.js";
 export { checkFormat, prettierRunner } from "./format.js";
+export { analyzeForbiddenFile } from "./forbidden.js";
 export { analyzeWorkflowFile } from "./workflow.js";

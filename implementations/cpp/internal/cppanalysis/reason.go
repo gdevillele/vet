@@ -28,6 +28,8 @@ func (a Analyzer) reason(ruleID string) string {
 		return a.config.GithubActionsPinned.Reason
 	case RuleNoComments:
 		return a.config.NoComments.Reason
+	case RuleForbiddenFiles:
+		return a.config.ForbiddenFiles.Reason
 	default:
 		return ""
 	}

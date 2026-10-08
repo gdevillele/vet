@@ -1,7 +1,8 @@
 use crate::{
-    analysis::{AnalyzeFileRequest, Analyzer},
+    analysis::{AnalyzeFileRequest, AnalyzeForbiddenFileRequest, Analyzer},
     config::{self, CasingStyle, Config, FunctionDocstringPolicy, LoadFileRequest},
     diagnostic::Diagnostic,
+    pathpattern,
 };
 use glob::glob;
 use serde::Serialize;
@@ -9,7 +10,7 @@ use std::{
     collections::{BTreeSet, HashMap},
     fmt, fs,
     io::Write,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 pub const VERSION: &str = "0.1.0-dev";
@@ -35,6 +36,7 @@ struct CliOptions {
     constant_casing: Option<CasingStyle>,
     no_comments: Option<bool>,
     github_actions_pinned: Option<bool>,
+    forbidden_files: Option<bool>,
     version: bool,
     paths: Vec<String>,
 }
@@ -59,6 +61,12 @@ struct WorkflowCollectionRequest {
 struct WorkflowFileCollector {
     files: Vec<String>,
     seen: BTreeSet<String>,
+}
+
+struct ForbiddenFileCollector {
+    files: Vec<String>,
+    seen_files: BTreeSet<String>,
+    seen_dirs: BTreeSet<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -162,6 +170,8 @@ fn run_inner<O: Write, E: Write>(
 
     let files = collect_rust_files(selection).map_err(|err| err.to_string())?;
     let analyze_workflows = config.github_actions_pinned.enabled;
+    let analyze_forbidden_files =
+        config.forbidden_files.enabled && !config.forbidden_files.patterns.is_empty();
     let analyzer = Analyzer::new(config);
     let mut diagnostics = Vec::new();
     for file in files {
@@ -189,6 +199,24 @@ fn run_inner<O: Write, E: Write>(
                 })
                 .map_err(|err| format!("{file}: {err}"))?;
             diagnostics.extend(file_diagnostics);
+        }
+    }
+    if analyze_forbidden_files {
+        let paths = if explicit_paths.is_empty() {
+            vec![".".to_string()]
+        } else {
+            explicit_paths
+        };
+        let candidates = collect_forbidden_file_candidates(paths).map_err(|err| err.to_string())?;
+        let working_dir = std::env::current_dir().map_err(|err| err.to_string())?;
+        for file in candidates {
+            let relative_path = relative_slash_path(&working_dir, &file);
+            diagnostics.extend(
+                analyzer.analyze_forbidden_file(AnalyzeForbiddenFileRequest {
+                    path: file,
+                    relative_path,
+                }),
+            );
         }
     }
 
@@ -252,6 +280,9 @@ fn parse_options(args: Vec<String>) -> Result<CliOptions, String> {
             }
             "--github-actions-pinned" | "-github-actions-pinned" => {
                 options.github_actions_pinned = Some(optional_bool(inline_value, flag)?);
+            }
+            "--forbidden-files" | "-forbidden-files" => {
+                options.forbidden_files = Some(optional_bool(inline_value, flag)?);
             }
             "--version" | "-version" => {
                 options.version = optional_bool(inline_value, flag)?;
@@ -537,6 +568,9 @@ fn apply_options(config: &mut Config, options: &CliOptions) {
     if let Some(enabled) = options.github_actions_pinned {
         config.github_actions_pinned.enabled = enabled;
     }
+    if let Some(enabled) = options.forbidden_files {
+        config.forbidden_files.enabled = enabled;
+    }
 }
 
 fn collect_rust_files(request: FileCollectionRequest) -> Result<Vec<String>, CliError> {
@@ -626,7 +660,7 @@ impl FileCollector {
     fn is_excluded(&self, path: &str) -> bool {
         self.exclude
             .iter()
-            .any(|pattern| pattern_matches(pattern, path))
+            .any(|pattern| pathpattern::matches(pattern, path))
     }
 }
 
@@ -655,60 +689,6 @@ fn path_to_string(path: &Path) -> String {
 
 fn should_skip_directory(name: &str) -> bool {
     matches!(name, ".git" | "target" | "node_modules") || name.starts_with('.')
-}
-
-fn pattern_matches(pattern: &str, file_path: &str) -> bool {
-    let normalized_pattern = normalize_pattern(pattern);
-    let normalized_path = normalize_pattern(file_path);
-
-    if normalized_pattern.is_empty() {
-        return false;
-    }
-    if normalized_pattern == "..." {
-        return true;
-    }
-    if let Some(prefix) = normalized_pattern.strip_suffix("/...") {
-        return normalized_path == prefix || normalized_path.starts_with(&format!("{prefix}/"));
-    }
-    if let Some(prefix) = normalized_pattern.strip_suffix("/**") {
-        return normalized_path == prefix || normalized_path.starts_with(&format!("{prefix}/"));
-    }
-    if let Some(suffix_pattern) = normalized_pattern.strip_prefix("**/") {
-        if pattern_matches(suffix_pattern, &normalized_path) {
-            return true;
-        }
-        let parts = normalized_path.split('/').collect::<Vec<_>>();
-        for index in 1..parts.len() {
-            if pattern_matches(suffix_pattern, &parts[index..].join("/")) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    if glob::Pattern::new(&normalized_pattern)
-        .map(|pattern| pattern.matches(&normalized_path))
-        .unwrap_or(false)
-    {
-        return true;
-    }
-    if !normalized_pattern.contains('/') {
-        if let Some(base) = Path::new(&normalized_path).file_name() {
-            return glob::Pattern::new(&normalized_pattern)
-                .map(|pattern| pattern.matches(&base.to_string_lossy()))
-                .unwrap_or(false);
-        }
-    }
-
-    false
-}
-
-fn normalize_pattern(value: &str) -> String {
-    let mut result = value.replace('\\', "/");
-    while result.starts_with("./") {
-        result = result[2..].to_string();
-    }
-    result.trim_end_matches('/').to_string()
 }
 
 fn collect_workflow_files(request: WorkflowCollectionRequest) -> Result<Vec<String>, CliError> {
@@ -813,6 +793,157 @@ impl WorkflowFileCollector {
 
 fn is_workflow_file(path: &str) -> bool {
     path.ends_with(".yml") || path.ends_with(".yaml")
+}
+
+fn collect_forbidden_file_candidates(paths: Vec<String>) -> Result<Vec<String>, CliError> {
+    let mut collector = ForbiddenFileCollector {
+        files: Vec::new(),
+        seen_files: BTreeSet::new(),
+        seen_dirs: BTreeSet::new(),
+    };
+
+    for path in paths {
+        collector.add_explicit_path(&normalize_path(&path))?;
+    }
+    collector.files.sort();
+    Ok(collector.files)
+}
+
+impl ForbiddenFileCollector {
+    fn add_explicit_path(&mut self, path: &str) -> Result<(), CliError> {
+        if has_git_segment(path) {
+            return Ok(());
+        }
+        if has_glob_syntax(path) {
+            let mut matches = Vec::new();
+            for entry in glob(path)? {
+                match entry {
+                    Ok(path) => matches.push(path),
+                    Err(err) => {
+                        return Err(CliError::Message(format!(
+                            "invalid file pattern: {path}: {err}"
+                        )))
+                    }
+                }
+            }
+            if matches.is_empty() {
+                return Err(CliError::Message(format!(
+                    "pattern matched no files: {path}"
+                )));
+            }
+            for path in matches {
+                self.add_explicit_path(&path_to_string(&path))?;
+            }
+            return Ok(());
+        }
+
+        let metadata = fs::metadata(path).map_err(|err| {
+            if err.kind() == std::io::ErrorKind::NotFound {
+                CliError::Message(format!("path does not exist: {path}"))
+            } else {
+                CliError::Io(err)
+            }
+        })?;
+        if metadata.is_dir() {
+            self.add_dir(path)
+        } else {
+            self.add_file(path);
+            Ok(())
+        }
+    }
+
+    fn add_dir(&mut self, path: &str) -> Result<(), CliError> {
+        let resolved_path = fs::canonicalize(path)?;
+        if !self.seen_dirs.insert(resolved_path) {
+            return Ok(());
+        }
+
+        let mut entries = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            if entry.file_name() == ".git" {
+                continue;
+            }
+
+            let child = clean_path(&Path::new(path).join(entry.file_name()));
+            match fs::metadata(&child) {
+                Ok(metadata) if metadata.is_dir() => self.add_dir(&child)?,
+                Ok(_) => self.add_file(&child),
+                // Broken or looping symlinks are matched by name and never followed.
+                Err(_) if entry.file_type()?.is_symlink() => self.add_file(&child),
+                Err(err) => return Err(CliError::Io(err)),
+            }
+        }
+        Ok(())
+    }
+
+    fn add_file(&mut self, path: &str) {
+        if self.seen_files.insert(path.to_string()) {
+            self.files.push(path.to_string());
+        }
+    }
+}
+
+fn has_git_segment(path: &str) -> bool {
+    path.replace('\\', "/")
+        .split('/')
+        .any(|segment| segment == ".git")
+}
+
+/// Lexically cleans a joined path like Go's filepath.Join so walked paths carry no "./" prefix.
+fn clean_path(path: &Path) -> String {
+    let mut cleaned = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                if matches!(cleaned.components().next_back(), Some(Component::Normal(_))) {
+                    cleaned.pop();
+                } else if !cleaned.has_root() {
+                    cleaned.push("..");
+                }
+            }
+            other => cleaned.push(other),
+        }
+    }
+    if cleaned.as_os_str().is_empty() {
+        return ".".to_string();
+    }
+    path_to_string(&cleaned)
+}
+
+fn relative_slash_path(working_dir: &Path, path: &str) -> String {
+    let path = Path::new(path);
+    let relative = if path.is_absolute() {
+        relative_to(working_dir, path).unwrap_or_else(|| path.to_path_buf())
+    } else {
+        path.to_path_buf()
+    };
+    path_to_string(&relative).replace('\\', "/")
+}
+
+fn relative_to(base: &Path, path: &Path) -> Option<PathBuf> {
+    let base = PathBuf::from(clean_path(base));
+    let path = PathBuf::from(clean_path(path));
+    let base_components = base.components().collect::<Vec<_>>();
+    let path_components = path.components().collect::<Vec<_>>();
+    if base_components.first() != path_components.first() {
+        return None;
+    }
+
+    let common = base_components
+        .iter()
+        .zip(&path_components)
+        .take_while(|(left, right)| left == right)
+        .count();
+    let mut relative = PathBuf::new();
+    for _ in common..base_components.len() {
+        relative.push("..");
+    }
+    for component in &path_components[common..] {
+        relative.push(component);
+    }
+    Some(relative)
 }
 
 fn sort_diagnostics(diagnostics: &mut [Diagnostic]) {

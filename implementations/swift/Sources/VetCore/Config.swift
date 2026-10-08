@@ -11,6 +11,7 @@ public struct VetConfig: Equatable {
     public var format: FormatRule
     public var casing: CasingRule
     public var githubActionsPinned: GithubActionsPinnedRule
+    public var forbiddenFiles: ForbiddenFilesRule
     public var fileSelection: FileSelection
 
     public static func `default`() -> VetConfig {
@@ -34,6 +35,7 @@ public struct VetConfig: Equatable {
                 ignorePatterns: []
             ),
             githubActionsPinned: GithubActionsPinnedRule(enabled: false),
+            forbiddenFiles: ForbiddenFilesRule(enabled: false, patterns: [], exclude: []),
             fileSelection: FileSelection(files: [], exclude: [])
         )
     }
@@ -108,6 +110,13 @@ public struct GithubActionsPinnedRule: Equatable {
     public var reason = ""
 }
 
+public struct ForbiddenFilesRule: Equatable {
+    public var enabled: Bool
+    public var patterns: [String]
+    public var exclude: [String]
+    public var reason = ""
+}
+
 public struct FileSelection: Equatable {
     public var files: [String]
     public var exclude: [String]
@@ -175,6 +184,7 @@ struct RulesFile: Decodable {
     let format: FormatFile?
     let casing: CasingFile?
     let githubActionsPinned: GithubActionsPinnedFile?
+    let forbiddenFiles: ForbiddenFilesFile?
 
     enum CodingKeys: String, CodingKey, CaseIterable {
         case maxFunctionParameters = "max-function-parameters"
@@ -186,6 +196,7 @@ struct RulesFile: Decodable {
         case format
         case casing
         case githubActionsPinned = "github-actions-pinned"
+        case forbiddenFiles = "forbidden-files"
     }
 
     init(from decoder: Decoder) throws {
@@ -200,6 +211,7 @@ struct RulesFile: Decodable {
         format = try container.decodeIfPresent(FormatFile.self, forKey: .format)
         casing = try container.decodeIfPresent(CasingFile.self, forKey: .casing)
         githubActionsPinned = try container.decodeIfPresent(GithubActionsPinnedFile.self, forKey: .githubActionsPinned)
+        forbiddenFiles = try container.decodeIfPresent(ForbiddenFilesFile.self, forKey: .forbiddenFiles)
     }
 }
 
@@ -386,6 +398,29 @@ struct GithubActionsPinnedFile: Decodable {
     }
 }
 
+struct ForbiddenFilesFile: Decodable {
+    let enabled: Bool?
+    let patterns: [String]?
+    let exclude: [String]?
+    let reason: String?
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case enabled
+        case patterns
+        case exclude
+        case reason
+    }
+
+    init(from decoder: Decoder) throws {
+        try rejectUnknownKeys(decoder: decoder, allowed: allowedKeys(CodingKeys.self))
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+        patterns = try container.decodeIfPresent([String].self, forKey: .patterns)
+        exclude = try container.decodeIfPresent([String].self, forKey: .exclude)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
+    }
+}
+
 struct AnyCodingKey: CodingKey {
     let stringValue: String
     let intValue: Int?
@@ -467,6 +502,16 @@ public enum ConfigLoader {
 
         if let version = document.version, version != 1 {
             throw ConfigError.unsupportedVersion(version)
+        }
+
+        let languagesWithForbiddenFiles = (document.languages ?? [:])
+            .filter { $0.value.rules?.forbiddenFiles != nil }
+            .keys
+            .sorted()
+        if let language = languagesWithForbiddenFiles.first {
+            throw ConfigError.invalid(
+                "languages.\(language).rules.forbidden-files is not supported; forbidden-files is repo-wide and must be set under top-level rules"
+            )
         }
 
         var result = applyRules(document.rules, to: request.base)
@@ -597,6 +642,21 @@ public enum ConfigLoader {
             }
         }
 
+        if let rule = rules.forbiddenFiles {
+            if let enabled = rule.enabled {
+                result.forbiddenFiles.enabled = enabled
+            }
+            if let patterns = rule.patterns {
+                result.forbiddenFiles.patterns = patterns
+            }
+            if let exclude = rule.exclude {
+                result.forbiddenFiles.exclude = exclude
+            }
+            if let reason = rule.reason {
+                result.forbiddenFiles.reason = reason
+            }
+        }
+
         return result
     }
 
@@ -627,6 +687,12 @@ public enum ConfigLoader {
             } catch {
                 throw ConfigError.invalid("casing.ignore-patterns contains invalid regex \(pattern)")
             }
+        }
+        if config.forbiddenFiles.patterns.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            throw ConfigError.invalid("forbidden-files.patterns must not contain empty patterns")
+        }
+        if config.forbiddenFiles.exclude.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            throw ConfigError.invalid("forbidden-files.exclude must not contain empty patterns")
         }
     }
 }

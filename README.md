@@ -118,6 +118,39 @@ strings, regular expressions, and raw literals do not count. Keep
 `function-docstring.policy: optional` when using this rule to avoid requiring
 comments that it forbids. Existing file selection and exclusions still apply.
 
+To fail vet whenever Python is committed anywhere in the repository:
+
+```yaml
+version: 1
+rules:
+  forbidden-files:
+    enabled: true
+    patterns: ["**/*.py", "**/*.pyi", "**/*.pyw", "**/*.ipynb", "**/pyproject.toml", "**/requirements*.txt"]
+    exclude: ["design/archive/**"]
+    reason: "Use Go for tooling and checks"
+```
+
+```text
+foo/bar.py:1:1: VET016: file type is forbidden (matches "**/*.py") (reason: Use Go for tooling and checks)
+```
+
+`forbidden-files` (`VET016`) is a general file ban by path pattern; nothing about
+it is specific to Python. It is disabled by default with no patterns, and
+enabling it without patterns checks nothing. `--forbidden-files[=false]`
+overrides `enabled`; patterns come only from the config file.
+
+The rule is repo-wide rather than per language, so it is only accepted under the
+top-level `rules` block; putting it under `languages.<language>.rules` is a
+config error. With no CLI paths, every runner walks the whole tree from the
+working directory, including hidden directories, and `languages.<language>.files`
+and `exclude` do not apply. With CLI paths, only those paths are walked. `.git`
+is always skipped, symlinked directory cycles are visited once, and broken
+symlinks are matched by name. `patterns` and `exclude` use the same glob syntax
+as `languages.<language>.exclude` and match slash-separated paths relative to
+the working directory. Each matching file that no `exclude` entry matches gets
+one diagnostic at `1:1`, naming the first matching pattern. File contents,
+including `#!` lines, are never read.
+
 Comment detection uses native parser/lexer APIs. The C/C++ runner requires
 `clang` in PATH when this rule is enabled; it uses raw tokenization, so project
 headers and a compilation database are unnecessary and inactive preprocessor
@@ -156,6 +189,10 @@ rules:
     ignore-patterns: []
   github-actions-pinned:
     enabled: false
+  forbidden-files:
+    enabled: false
+    patterns: []
+    exclude: []
 languages:
   go:
     files:
@@ -250,6 +287,7 @@ Additional strictness flags:
 --type-casing language-default
 --constant-casing language-default
 --github-actions-pinned
+--forbidden-files
 ```
 
 The docstring policy accepts `forbidden`, `optional`, or `mandatory`.

@@ -6,8 +6,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -15,6 +15,7 @@ import (
 	"github.com/gdevillele/vet/implementations/cpp/internal/config"
 	"github.com/gdevillele/vet/implementations/cpp/internal/cppanalysis"
 	"github.com/gdevillele/vet/implementations/cpp/internal/diagnostic"
+	"github.com/gdevillele/vet/implementations/cpp/internal/pathpattern"
 )
 
 const (
@@ -66,6 +67,12 @@ type workflowCollectionRequest struct {
 	Explicit bool
 }
 
+type forbiddenFileCollection struct {
+	files     []string
+	seenFiles map[string]bool
+	seenDirs  map[string]bool
+}
+
 type diagnosticOrder struct {
 	Left  diagnostic.Diagnostic
 	Right diagnostic.Diagnostic
@@ -109,6 +116,7 @@ func Run(invocation Invocation) int {
 	constantCasing := flags.String("constant-casing", string(config.CasingLanguageDefault), "constant casing style (not supported for C/C++)")
 	githubActionsPinned := flags.Bool("github-actions-pinned", false, "require GitHub workflow step actions to use full-length commit SHA pins")
 	noComments := flags.Bool("no-comments", false, "forbid source comments (VET015)")
+	forbiddenFiles := flags.Bool("forbidden-files", false, "forbid files matching rules.forbidden-files.patterns (VET016)")
 	version := flags.Bool("version", false, "print version")
 
 	if err := flags.Parse(invocation.Args); err != nil {
@@ -182,6 +190,9 @@ func Run(invocation Invocation) int {
 	}
 	if visited["github-actions-pinned"] {
 		cfg.GithubActionsPinned.Enabled = *githubActionsPinned
+	}
+	if visited["forbidden-files"] {
+		cfg.ForbiddenFiles.Enabled = *forbiddenFiles
 	}
 
 	// Silence unused-variable warnings for unsupported flag bindings that are
@@ -270,6 +281,29 @@ func Run(invocation Invocation) int {
 			}
 
 			diagnostics = append(diagnostics, fileDiagnostics...)
+		}
+	}
+
+	if cfg.ForbiddenFiles.Enabled && len(cfg.ForbiddenFiles.Patterns) > 0 {
+		paths := flags.Args()
+		if len(paths) == 0 {
+			paths = []string{"."}
+		}
+		candidates, err := collectForbiddenFileCandidates(paths)
+		if err != nil {
+			fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
+			return 2
+		}
+		workingDir, err := os.Getwd()
+		if err != nil {
+			fmt.Fprintf(invocation.Stderr, "vet: %v\n", err)
+			return 2
+		}
+		for _, file := range candidates {
+			diagnostics = append(diagnostics, analyzer.AnalyzeForbiddenFile(cppanalysis.AnalyzeForbiddenFileRequest{
+				Path:         file,
+				RelativePath: relativeSlashPath(workingDir, file),
+			})...)
 		}
 	}
 
@@ -448,7 +482,7 @@ func (c *fileCollection) addFile(path string) {
 
 func (c *fileCollection) isExcluded(filePath string) bool {
 	for _, pattern := range c.exclude {
-		if matchPathPattern(pattern, filePath) {
+		if pathpattern.Match(pattern, filePath) {
 			return true
 		}
 	}
@@ -560,6 +594,129 @@ func isWorkflowFile(path string) bool {
 	return strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml")
 }
 
+func collectForbiddenFileCandidates(paths []string) ([]string, error) {
+	collection := forbiddenFileCollection{
+		seenFiles: make(map[string]bool),
+		seenDirs:  make(map[string]bool),
+	}
+
+	for _, path := range paths {
+		if err := collection.addExplicitPath(normalizePath(path)); err != nil {
+			return nil, err
+		}
+	}
+
+	sort.Strings(collection.files)
+	return collection.files, nil
+}
+
+func (c *forbiddenFileCollection) addExplicitPath(path string) error {
+	if hasGitSegment(path) {
+		return nil
+	}
+	if hasGlobSyntax(path) {
+		matches, err := filepath.Glob(path)
+		if err != nil {
+			return err
+		}
+		if len(matches) == 0 {
+			return fmt.Errorf("pattern matched no files: %s", path)
+		}
+		for _, match := range matches {
+			if err := c.addExplicitPath(match); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		return c.addDir(path)
+	}
+
+	c.addFile(path)
+	return nil
+}
+
+func (c *forbiddenFileCollection) addDir(path string) error {
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	resolvedPath, err = filepath.Abs(resolvedPath)
+	if err != nil {
+		return err
+	}
+	if c.seenDirs[resolvedPath] {
+		return nil
+	}
+	c.seenDirs[resolvedPath] = true
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if entry.Name() == ".git" {
+			continue
+		}
+
+		entryPath := filepath.Join(path, entry.Name())
+		info, err := os.Stat(entryPath)
+		if err != nil {
+			if entry.Type()&fs.ModeSymlink == 0 {
+				return err
+			}
+			// Broken or looping symlinks are matched by name and never followed.
+			c.addFile(entryPath)
+			continue
+		}
+
+		if info.IsDir() {
+			if err := c.addDir(entryPath); err != nil {
+				return err
+			}
+			continue
+		}
+
+		c.addFile(entryPath)
+	}
+
+	return nil
+}
+
+func (c *forbiddenFileCollection) addFile(path string) {
+	if c.seenFiles[path] {
+		return
+	}
+
+	c.seenFiles[path] = true
+	c.files = append(c.files, path)
+}
+
+func hasGitSegment(path string) bool {
+	for _, segment := range strings.Split(filepath.ToSlash(path), "/") {
+		if segment == ".git" {
+			return true
+		}
+	}
+	return false
+}
+
+func relativeSlashPath(workingDir string, path string) string {
+	if filepath.IsAbs(path) {
+		if relative, err := filepath.Rel(workingDir, path); err == nil {
+			path = relative
+		}
+	}
+	return filepath.ToSlash(path)
+}
+
 func normalizePath(path string) string {
 	if path == "..." {
 		return "."
@@ -578,59 +735,6 @@ func normalizePath(path string) string {
 
 func hasGlobSyntax(path string) bool {
 	return strings.ContainsAny(path, "*?[")
-}
-
-func matchPathPattern(pattern string, filePath string) bool {
-	normalizedPattern := normalizePattern(pattern)
-	normalizedPath := normalizePattern(filePath)
-
-	if normalizedPattern == "" {
-		return false
-	}
-
-	if normalizedPattern == "..." {
-		return true
-	}
-	if strings.HasSuffix(normalizedPattern, "/...") {
-		prefix := strings.TrimSuffix(normalizedPattern, "/...")
-		return normalizedPath == prefix || strings.HasPrefix(normalizedPath, prefix+"/")
-	}
-	if strings.HasSuffix(normalizedPattern, "/**") {
-		prefix := strings.TrimSuffix(normalizedPattern, "/**")
-		return normalizedPath == prefix || strings.HasPrefix(normalizedPath, prefix+"/")
-	}
-	if strings.HasPrefix(normalizedPattern, "**/") {
-		suffixPattern := strings.TrimPrefix(normalizedPattern, "**/")
-		if matchPathPattern(suffixPattern, normalizedPath) {
-			return true
-		}
-		parts := strings.Split(normalizedPath, "/")
-		for index := 1; index < len(parts); index++ {
-			if matchPathPattern(suffixPattern, strings.Join(parts[index:], "/")) {
-				return true
-			}
-		}
-		return false
-	}
-
-	if matches, err := path.Match(normalizedPattern, normalizedPath); err == nil && matches {
-		return true
-	}
-	if !strings.Contains(normalizedPattern, "/") {
-		if matches, err := path.Match(normalizedPattern, path.Base(normalizedPath)); err == nil && matches {
-			return true
-		}
-	}
-
-	return false
-}
-
-func normalizePattern(value string) string {
-	result := filepath.ToSlash(value)
-	for strings.HasPrefix(result, "./") {
-		result = strings.TrimPrefix(result, "./")
-	}
-	return strings.TrimSuffix(result, "/")
 }
 
 func shouldSkipDir(name string) bool {
