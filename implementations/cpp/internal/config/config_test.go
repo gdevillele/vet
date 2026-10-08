@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -207,5 +208,61 @@ languages:
 	}
 	if cfg.Format.Reason != "" {
 		t.Fatalf("expected cpp override to clear format reason, got %q", cfg.Format.Reason)
+	}
+}
+
+func TestLoadFileAppliesForbiddenFilesConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "vet.yaml")
+	data := []byte(`version: 1
+rules:
+  forbidden-files:
+    enabled: true
+    patterns: ["**/*.py", "**/pyproject.toml"]
+    exclude: ["design/archive/**"]
+    reason: Use Go for tooling and checks
+`)
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("WriteFile returned error: %v", err)
+	}
+
+	defaults := Default().ForbiddenFiles
+	if defaults.Enabled || len(defaults.Patterns) != 0 || len(defaults.Exclude) != 0 {
+		t.Fatalf("expected forbidden-files to be off with no patterns by default, got %#v", defaults)
+	}
+
+	cfg, err := LoadFile(LoadFileRequest{Path: path, Base: Default(), Language: "cpp"})
+	if err != nil {
+		t.Fatalf("LoadFile returned error: %v", err)
+	}
+
+	rule := cfg.ForbiddenFiles
+	if !rule.Enabled || len(rule.Patterns) != 2 || rule.Patterns[1] != "**/pyproject.toml" || len(rule.Exclude) != 1 || rule.Exclude[0] != "design/archive/**" || rule.Reason != "Use Go for tooling and checks" {
+		t.Fatalf("unexpected forbidden-files config: %#v", rule)
+	}
+}
+
+func TestLoadFileRejectsInvalidForbiddenFilesConfig(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		data string
+		want string
+	}{
+		{"language override", "languages:\n  rust:\n    rules:\n      forbidden-files:\n        enabled: true\n", "languages.rust.rules.forbidden-files is not supported"},
+		{"unknown field", "rules:\n  forbidden-files:\n    paths: [\"**/*.py\"]\n", "field paths not found"},
+		{"empty pattern", "rules:\n  forbidden-files:\n    patterns: [\"\"]\n", "forbidden-files.patterns must not contain empty patterns"},
+		{"empty exclude", "rules:\n  forbidden-files:\n    exclude: [\" \"]\n", "forbidden-files.exclude must not contain empty patterns"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "vet.yaml")
+			if err := os.WriteFile(path, []byte("version: 1\n"+test.data), 0o600); err != nil {
+				t.Fatalf("WriteFile returned error: %v", err)
+			}
+
+			_, err := LoadFile(LoadFileRequest{Path: path, Base: Default(), Language: "cpp"})
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("expected error containing %q, got %v", test.want, err)
+			}
+		})
 	}
 }

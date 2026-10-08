@@ -29,6 +29,19 @@ rules:
     ignore-patterns: []
   github-actions-pinned:
     enabled: false
+  # Top-level only: repo-wide, so it is rejected under languages.<lang>.rules.
+  forbidden-files:
+    enabled: false
+    patterns:
+      - "**/*.py"
+      - "**/*.pyi"
+      - "**/*.pyw"
+      - "**/*.ipynb"
+      - "**/pyproject.toml"
+      - "**/requirements*.txt"
+    exclude:
+      - "design/archive/**"
+    reason: Use Go for tooling and checks
 languages:
   go:
     files:

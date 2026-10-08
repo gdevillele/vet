@@ -26,6 +26,7 @@ swift run vet -c ../../spec/config/v1.example.yaml path/to/project
 | VET008 | source-format                | implemented   |
 | VET014 | github-actions-pinned        | implemented   |
 | VET015 | no-comments                  | implemented   |
+| VET016 | forbidden-files              | implemented   |
 
 ## Unimplemented structural rules
 
@@ -82,3 +83,12 @@ comments are forbidden. CLI overrides are `--no-comments[=false]` and
 SwiftPM resolves SwiftParser/SwiftSyntax;
 comment detection handles nested comments, raw strings, regex literals, and
 comments inside string interpolations.
+
+## Forbidden files (VET016)
+
+Use top-level `rules.forbidden-files` with `enabled`, `patterns`, `exclude`, and
+an optional `reason` to fail on any file whose path matches a pattern, such as
+`"**/*.py"`. The rule is repo-wide: with no paths it walks the whole tree from the
+working directory, otherwise only the given paths, always skipping `.git`.
+Setting it under `languages.<lang>.rules` is a config error. CLI override is
+`--forbidden-files[=false]`; patterns come only from the config file.

@@ -15,6 +15,7 @@ public enum RuleID {
     public static let constantCasing = "VET013"
     public static let githubActionsPinned = "VET014"
     public static let noComments = "VET015"
+    public static let forbiddenFiles = "VET016"
 }
 
 public struct AnalyzeFileRequest {

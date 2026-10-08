@@ -14,6 +14,7 @@ import {
 } from "./analysis.js";
 import type { Config } from "./config.js";
 import type { Diagnostic } from "./diagnostic.js";
+import { RULE_FORBIDDEN_FILES } from "./forbidden.js";
 import { RULE_SOURCE_FORMAT } from "./format.js";
 import { RULE_GITHUB_ACTIONS_PINNED } from "./workflow.js";
 
@@ -52,6 +53,8 @@ function reasonFor(cfg: Config, ruleId: string): string | undefined {
       return cfg.githubActionsPinned.reason;
     case RULE_NO_COMMENTS:
       return cfg.noComments.reason;
+    case RULE_FORBIDDEN_FILES:
+      return cfg.forbiddenFiles.reason;
     default:
       return undefined;
   }

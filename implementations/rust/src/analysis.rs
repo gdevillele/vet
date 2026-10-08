@@ -1,6 +1,7 @@
 use crate::{
     config::{CasingRule, CasingStyle, Config, FunctionDocstringPolicy},
     diagnostic::{diagnostic_at_offset, Diagnostic},
+    pathpattern,
 };
 use regex::Regex;
 use saphyr::{LoadableYamlNode, MarkedYaml, YamlData};
@@ -30,6 +31,7 @@ pub const RULE_TYPE_CASING: &str = "VET012";
 pub const RULE_CONSTANT_CASING: &str = "VET013";
 pub const RULE_GITHUB_ACTIONS_PINNED: &str = "VET014";
 pub const RULE_NO_COMMENTS: &str = "VET015";
+pub const RULE_FORBIDDEN_FILES: &str = "VET016";
 
 #[derive(Debug)]
 pub enum AnalyzeError {
@@ -66,6 +68,11 @@ pub struct AnalyzeFileRequest {
 pub struct AnalyzeWorkflowFileRequest {
     pub path: String,
     pub source: String,
+}
+
+pub struct AnalyzeForbiddenFileRequest {
+    pub path: String,
+    pub relative_path: String,
 }
 
 #[derive(Clone, Debug)]
@@ -128,6 +135,34 @@ impl Analyzer {
         Ok(self.with_reasons(diagnostics))
     }
 
+    pub fn analyze_forbidden_file(&self, request: AnalyzeForbiddenFileRequest) -> Vec<Diagnostic> {
+        let rule = &self.config.forbidden_files;
+        if !rule.enabled
+            || rule
+                .exclude
+                .iter()
+                .any(|pattern| pathpattern::matches(pattern, &request.relative_path))
+        {
+            return Vec::new();
+        }
+
+        let Some(pattern) = rule
+            .patterns
+            .iter()
+            .find(|pattern| pathpattern::matches(pattern, &request.relative_path))
+        else {
+            return Vec::new();
+        };
+
+        self.with_reasons(vec![Diagnostic::new(
+            RULE_FORBIDDEN_FILES,
+            format!("file type is forbidden (matches \"{pattern}\")"),
+            request.path,
+            1,
+            1,
+        )])
+    }
+
     /// Appends each rule's configured reason so developers know why the rule is enforced.
     fn with_reasons(&self, mut diagnostics: Vec<Diagnostic>) -> Vec<Diagnostic> {
         for diagnostic in &mut diagnostics {
@@ -154,6 +189,7 @@ impl Analyzer {
             | RULE_CONSTANT_CASING => &config.casing.reason,
             RULE_GITHUB_ACTIONS_PINNED => &config.github_actions_pinned.reason,
             RULE_NO_COMMENTS => &config.no_comments.reason,
+            RULE_FORBIDDEN_FILES => &config.forbidden_files.reason,
             _ => "",
         }
     }

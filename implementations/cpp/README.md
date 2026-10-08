@@ -44,6 +44,7 @@ go test ./...
 | VET008 | source-format                | implemented |
 | VET014 | github-actions-pinned        | implemented |
 | VET015 | no-comments                  | implemented |
+| VET016 | forbidden-files              | implemented |
 
 Function-shape and casing rules (`VET001`, `VET006`, `VET007`, `VET010`–`VET013`)
 are **not supported** for C/C++ and are **disabled by default**. The shared
@@ -96,3 +97,13 @@ This opt-in rule requires `clang` in PATH, in addition to `clang-format` if
 format checking is enabled. It uses Clang's raw lexer on the supplied source,
 so unavailable project includes and inactive preprocessor branches are handled
 without a compilation database. Missing/failing Clang returns an error.
+
+## Forbidden files (VET016)
+
+Use top-level `rules.forbidden-files` with `enabled`, `patterns`, and optional
+`exclude` to fail on any file whose path matches a pattern, such as
+`**/*.py`. The rule is repo-wide: with no paths it walks the whole tree from
+the working directory (skipping `.git`), and with paths it walks only those.
+It ignores `languages.cpp.files`, and the runner rejects it under
+`languages.<lang>.rules`. The CLI override is `--forbidden-files[=false]`;
+patterns come only from the config file.

@@ -32,10 +32,11 @@ Languages: Go, Rust, Swift, TypeScript, C/C++ (`cpp`).
 | **VET013** | `constant-casing` | **keep** custom | Go, Rust, TypeScript implemented; Swift + cpp **unimplemented** | Same as VET010. |
 | **VET014** | `github-actions-pinned` | **keep** custom | Go, Rust, Swift, TypeScript, cpp | Simple, security-relevant pin check on `jobs.*.steps[].uses`. Not a formatter concern; YAML-based check is adequate. Full actionlint suites are out of scope. |
 | **VET015** | `no-comments` | **keep** custom policy on native tokens | Go, Rust, Swift, TypeScript, cpp | Simple optional comment ban with an implicit exception for required file headers. Uses Go/TypeScript parser APIs, the Rust compiler lexer, SwiftSyntax trivia, and Clang raw tokens; no custom source lexer. |
+| **VET016** | `forbidden-files` | **keep** custom | Go, Rust, Swift, TypeScript, cpp | Opt-in repo-wide ban on files whose paths match configured globs, such as keeping Python out of a Go repository. Path matching only (no contents, no shebangs) and reuses the `exclude` glob matcher, so every runner can implement it the same way. Not a formatter or linter concern. |
 
 ## Summary counts
 
-- **Keep custom:** VET001–VET007, VET010–VET015 (language support as above).
+- **Keep custom:** VET001–VET007, VET010–VET016 (language support as above).
 - **Replace with standard tools:** VET008 (`source-format`).
 - **Remove:** VET009 (`indent-width`).
 
@@ -52,6 +53,7 @@ rules:
   format: { enabled: true }          # was indent: { type, width }
   casing: { enabled: false, ... }
   github-actions-pinned: { enabled: false }
+  forbidden-files: { enabled: false, patterns: [], exclude: [] }
 ```
 
 Removed: `indent.type`, `indent.width`, and CLI `--indent-type` / `--indent-width`.  

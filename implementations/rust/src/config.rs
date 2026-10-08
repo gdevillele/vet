@@ -15,6 +15,7 @@ pub struct Config {
     pub format: FormatRule,
     pub casing: CasingRule,
     pub github_actions_pinned: GithubActionsPinnedRule,
+    pub forbidden_files: ForbiddenFilesRule,
     pub file_selection: FileSelection,
 }
 
@@ -120,6 +121,14 @@ pub struct GithubActionsPinnedRule {
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct ForbiddenFilesRule {
+    pub enabled: bool,
+    pub patterns: Vec<String>,
+    pub exclude: Vec<String>,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FileSelection {
     pub files: Vec<String>,
     pub exclude: Vec<String>,
@@ -187,6 +196,8 @@ struct RulesFile {
     casing: Option<CasingFile>,
     #[serde(rename = "github-actions-pinned")]
     github_actions_pinned: Option<GithubActionsPinnedFile>,
+    #[serde(rename = "forbidden-files")]
+    forbidden_files: Option<ForbiddenFilesFile>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -265,6 +276,15 @@ struct GithubActionsPinnedFile {
     reason: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ForbiddenFilesFile {
+    enabled: Option<bool>,
+    patterns: Option<Vec<String>>,
+    exclude: Option<Vec<String>>,
+    reason: Option<String>,
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -313,6 +333,7 @@ impl Default for Config {
                 enabled: false,
                 reason: String::new(),
             },
+            forbidden_files: ForbiddenFilesRule::default(),
             file_selection: FileSelection::default(),
         }
     }
@@ -331,6 +352,17 @@ pub fn load_file(request: LoadFileRequest) -> Result<Config, ConfigError> {
                 request.path, version
             )));
         }
+    }
+
+    if let Some((language, _)) = document
+        .languages
+        .iter()
+        .find(|(_, language)| language.rules.forbidden_files.is_some())
+    {
+        return Err(ConfigError::Message(format!(
+            "config {:?}: languages.{language}.rules.forbidden-files is not supported; forbidden-files is repo-wide and must be set under top-level rules",
+            request.path
+        )));
     }
 
     let mut result = apply_rules(request.base, &document.rules);
@@ -456,6 +488,21 @@ fn apply_rules(mut config: Config, rules: &RulesFile) -> Config {
         }
     }
 
+    if let Some(rule) = &rules.forbidden_files {
+        if let Some(enabled) = rule.enabled {
+            config.forbidden_files.enabled = enabled;
+        }
+        if let Some(patterns) = &rule.patterns {
+            config.forbidden_files.patterns = patterns.clone();
+        }
+        if let Some(exclude) = &rule.exclude {
+            config.forbidden_files.exclude = exclude.clone();
+        }
+        if let Some(reason) = &rule.reason {
+            config.forbidden_files.reason = reason.clone();
+        }
+    }
+
     config
 }
 
@@ -498,6 +545,26 @@ pub fn validate(config: &Config) -> Result<(), ConfigError> {
                 pattern, err
             ))
         })?;
+    }
+    if config
+        .forbidden_files
+        .patterns
+        .iter()
+        .any(|pattern| pattern.trim().is_empty())
+    {
+        return Err(invalid(
+            "forbidden-files.patterns must not contain empty patterns",
+        ));
+    }
+    if config
+        .forbidden_files
+        .exclude
+        .iter()
+        .any(|pattern| pattern.trim().is_empty())
+    {
+        return Err(invalid(
+            "forbidden-files.exclude must not contain empty patterns",
+        ));
     }
 
     Ok(())

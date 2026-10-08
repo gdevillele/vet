@@ -10,13 +10,18 @@ import {
   type FunctionDocstringPolicy,
 } from "./config.js";
 import { Analyzer } from "./analysis.js";
-import { collectTypeScriptFiles, collectWorkflowFiles } from "./discover.js";
+import {
+  collectForbiddenFileCandidates,
+  collectTypeScriptFiles,
+  collectWorkflowFiles,
+} from "./discover.js";
 import {
   renderJSON,
   renderText,
   sortDiagnostics,
   type Diagnostic,
 } from "./diagnostic.js";
+import { analyzeForbiddenFile } from "./forbidden.js";
 import { withReasons } from "./reason.js";
 import { analyzeWorkflowFile } from "./workflow.js";
 
@@ -73,6 +78,7 @@ function parseArgs(args: string[]): {
             name === "require-file-header" ||
             name === "no-comments" ||
             name === "github-actions-pinned" ||
+            name === "forbidden-files" ||
             name === "version"
           ) {
             // peek: if next looks like value for non-bool, leave it
@@ -106,6 +112,7 @@ function parseArgs(args: string[]): {
           name !== "require-file-header" &&
           name !== "no-comments" &&
           name !== "github-actions-pinned" &&
+          name !== "forbidden-files" &&
           name !== "version"
         ) {
           if (name === "check-format" && next !== "true" && next !== "false") {
@@ -279,6 +286,12 @@ export async function run(invocation: Invocation): Promise<number> {
         "--github-actions-pinned",
       );
     }
+    if (visited.has("forbidden-files")) {
+      cfg.forbiddenFiles.enabled = asBool(
+        flags["forbidden-files"],
+        "--forbidden-files",
+      );
+    }
 
     validate(cfg);
   } catch (err) {
@@ -368,6 +381,33 @@ export async function run(invocation: Invocation): Promise<number> {
           path: file,
           source,
           enabled: true,
+        }),
+      );
+    }
+  }
+
+  if (cfg.forbiddenFiles.enabled && cfg.forbiddenFiles.patterns.length > 0) {
+    let candidates: string[];
+    try {
+      candidates = collectForbiddenFileCandidates({
+        paths: positionals.length > 0 ? positionals : ["."],
+        cwd,
+      });
+    } catch (err) {
+      invocation.stderr.write(
+        `vet: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      return 2;
+    }
+    for (const file of candidates) {
+      const relativePath = path.isAbsolute(file)
+        ? path.relative(cwd, file)
+        : file;
+      diagnostics.push(
+        ...analyzeForbiddenFile({
+          path: file,
+          relativePath: relativePath.replaceAll("\\", "/"),
+          rule: cfg.forbiddenFiles,
         }),
       );
     }

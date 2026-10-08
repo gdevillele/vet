@@ -189,6 +189,20 @@ directives and documentation, are checked. C/C++ delegates to
 preprocessing includes or dropping inactive branches; missing/failing Clang is
 an error only when this rule is enabled.
 
+`VET016` (`forbidden-files`) bans files by path when `forbidden-files.enabled`
+is true and `patterns` is non-empty. Like `VET014`, it is repo-wide rather than
+tied to a language's source files: with no CLI paths each runner walks the whole
+tree from the working directory, and with CLI paths it walks only those.
+`languages.<language>.files` and `exclude` do not apply, and the rule is
+rejected under `languages.<language>.rules` so all runners share one setting.
+The walk always skips `.git`, uses the same resolved-directory seen set as
+source collection to survive symlink cycles, and matches broken symlinks by
+name. `patterns` and `exclude` reuse the `languages.<language>.exclude` glob
+matcher on slash-separated paths relative to the working directory. Each
+matching file gets one diagnostic at `1:1`. The rule only looks at paths and
+never reads file contents. Because every runner implements the same walk, a
+repository that runs several runners gets the diagnostic once per runner.
+
 ## Rule Reasons
 
 Every rule block in `vet.yaml` accepts an optional `reason` string. It does not

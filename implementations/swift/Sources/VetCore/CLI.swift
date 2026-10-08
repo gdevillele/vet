@@ -38,6 +38,7 @@ struct CLIOptions {
     var constantCasing: CasingStyle?
     var noComments: Bool?
     var githubActionsPinned: Bool?
+    var forbiddenFiles: Bool?
     var version = false
     var paths: [String] = []
 
@@ -201,6 +202,25 @@ public enum CLI {
             }
         }
 
+        if config.forbiddenFiles.enabled && !config.forbiddenFiles.patterns.isEmpty {
+            let candidates: [String]
+            do {
+                candidates = try collectForbiddenFileCandidates(explicitPaths.isEmpty ? ["."] : explicitPaths)
+            } catch {
+                invocation.stderr("vet: \(error)\n")
+                return 2
+            }
+
+            let forbiddenFilesAnalyzer = ForbiddenFilesAnalyzer(config: config)
+            let workingDirectory = FileManager.default.currentDirectoryPath
+            for file in candidates {
+                diagnostics.append(contentsOf: forbiddenFilesAnalyzer.analyzeFile(AnalyzeForbiddenFileRequest(
+                    path: file,
+                    relativePath: relativeSlashPath(workingDirectory: workingDirectory, path: file)
+                )))
+            }
+        }
+
         diagnostics = diagnostics.map(config.withReason)
         diagnostics.sort { left, right in
             diagnosticComesBefore(DiagnosticSortRequest(left: left, right: right))
@@ -324,6 +344,9 @@ public enum CLI {
                 case "--github-actions-pinned", "-github-actions-pinned":
                     options.githubActionsPinned = try optionalBool(inlineValue, flag: flag)
                     options.visited.insert("github-actions-pinned")
+                case "--forbidden-files", "-forbidden-files":
+                    options.forbiddenFiles = try optionalBool(inlineValue, flag: flag)
+                    options.visited.insert("forbidden-files")
                 case "--version", "-version":
                     options.version = try optionalBool(inlineValue, flag: flag)
                     options.visited.insert("version")
@@ -434,6 +457,9 @@ public enum CLI {
         if let enabled = request.options.githubActionsPinned {
             config.githubActionsPinned.enabled = enabled
         }
+        if let enabled = request.options.forbiddenFiles {
+            config.forbiddenFiles.enabled = enabled
+        }
         return config
     }
 
@@ -453,6 +479,14 @@ public enum CLI {
         }
 
         for path in request.paths {
+            try collector.addExplicitPath(normalizePath(path))
+        }
+        return collector.files.sorted()
+    }
+
+    private static func collectForbiddenFileCandidates(_ paths: [String]) throws -> [String] {
+        var collector = ForbiddenFileCollector()
+        for path in paths {
             try collector.addExplicitPath(normalizePath(path))
         }
         return collector.files.sorted()
@@ -717,6 +751,160 @@ struct WorkflowFileCollector {
         }
         return matches
     }
+}
+
+struct ForbiddenFileCollector {
+    var files: [String] = []
+    var seenFiles: Set<String> = []
+    var seenDirectories: Set<String> = []
+
+    mutating func addExplicitPath(_ path: String) throws {
+        if hasGitSegment(path) {
+            return
+        }
+        if hasGlobSyntax(path) {
+            let matches = try expandGlob(path)
+            if matches.isEmpty {
+                throw CLIError.message("pattern matched no files: \(path)")
+            }
+            for match in matches {
+                try addExplicitPath(match)
+            }
+            return
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else {
+            throw CLIError.message("path does not exist: \(path)")
+        }
+
+        if isDirectory.boolValue {
+            try addDirectory(path)
+        } else {
+            addFile(path)
+        }
+    }
+
+    private mutating func addDirectory(_ path: String) throws {
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
+        guard seenDirectories.insert(resolvedPath).inserted else {
+            return
+        }
+
+        let entries = try FileManager.default.contentsOfDirectory(atPath: path).sorted()
+        for entry in entries where entry != ".git" {
+            let child = joinPath(path, entry)
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: child, isDirectory: &isDirectory) else {
+                // Broken or looping symlinks are matched by name and never followed.
+                guard isSymbolicLink(child) else {
+                    throw CLIError.message("path does not exist: \(child)")
+                }
+                addFile(child)
+                continue
+            }
+
+            if isDirectory.boolValue {
+                try addDirectory(child)
+            } else {
+                addFile(child)
+            }
+        }
+    }
+
+    private mutating func addFile(_ path: String) {
+        guard seenFiles.insert(path).inserted else {
+            return
+        }
+
+        files.append(path)
+    }
+
+    private func isSymbolicLink(_ path: String) -> Bool {
+        let type = try? FileManager.default.attributesOfItem(atPath: path)[.type] as? FileAttributeType
+        return type == .typeSymbolicLink
+    }
+
+    private func hasGlobSyntax(_ path: String) -> Bool {
+        path.contains("*") || path.contains("?") || path.contains("[")
+    }
+
+    private func expandGlob(_ pattern: String) throws -> [String] {
+        var results = glob_t()
+        let status = glob(pattern, 0, nil, &results)
+        defer {
+            globfree(&results)
+        }
+
+        if status == GLOB_NOMATCH {
+            return []
+        }
+        if status != 0 {
+            throw CLIError.message("invalid file pattern: \(pattern)")
+        }
+
+        var matches: [String] = []
+        guard let paths = results.gl_pathv else {
+            return matches
+        }
+        for index in 0..<Int(results.gl_pathc) {
+            if let path = paths[index] {
+                matches.append(String(cString: path))
+            }
+        }
+        return matches
+    }
+}
+
+func hasGitSegment(_ path: String) -> Bool {
+    path.replacingOccurrences(of: "\\", with: "/").split(separator: "/").contains(".git")
+}
+
+/// Joins and lexically cleans paths like Go's filepath.Join, so walking "." yields "dir/file".
+func joinPath(_ directory: String, _ entry: String) -> String {
+    cleanPath(directory + "/" + entry)
+}
+
+func cleanPath(_ path: String) -> String {
+    let rooted = path.hasPrefix("/")
+    var segments: [Substring] = []
+    for segment in path.split(separator: "/") {
+        switch segment {
+        case ".":
+            continue
+        case "..":
+            if let last = segments.last, last != ".." {
+                segments.removeLast()
+            } else if !rooted {
+                segments.append(segment)
+            }
+        default:
+            segments.append(segment)
+        }
+    }
+
+    let joined = segments.joined(separator: "/")
+    if rooted {
+        return "/" + joined
+    }
+    return joined.isEmpty ? "." : joined
+}
+
+/// Returns path relative to workingDirectory with slash separators, like Go's filepath.Rel for absolute paths.
+func relativeSlashPath(workingDirectory: String, path: String) -> String {
+    guard path.hasPrefix("/"), workingDirectory.hasPrefix("/") else {
+        return path
+    }
+
+    let base = cleanPath(workingDirectory).split(separator: "/")
+    let target = cleanPath(path).split(separator: "/")
+    var common = 0
+    while common < base.count && common < target.count && base[common] == target[common] {
+        common += 1
+    }
+
+    let parts = Array(repeating: Substring(".."), count: base.count - common) + target[common...]
+    return parts.isEmpty ? "." : parts.joined(separator: "/")
 }
 
 func isWorkflowFile(_ path: String) -> Bool {

@@ -24,6 +24,8 @@ extension VetConfig {
             githubActionsPinned.reason
         case RuleID.noComments:
             noComments.reason
+        case RuleID.forbiddenFiles:
+            forbiddenFiles.reason
         default:
             ""
         }
