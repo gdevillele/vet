@@ -37,7 +37,7 @@ func TestForbiddenFilesConformance(t *testing.T) {
 
 	root := t.TempDir()
 	buildForbiddenFilesLayout(t, filepath.Join(fixture, "layout.txt"), root)
-	chdirForTest(t, root)
+	t.Chdir(root)
 	config := filepath.Join(fixture, "vet.yaml")
 
 	var stdout, stderr bytes.Buffer
@@ -69,7 +69,7 @@ func TestForbiddenFilesConformance(t *testing.T) {
 
 func TestForbiddenFilesConfigAndCLI(t *testing.T) {
 	root := t.TempDir()
-	chdirForTest(t, root)
+	t.Chdir(root)
 	for _, file := range []string{"foo/bar.py", "other/tool.py", "docs/notes.md", "design/archive/old.py", ".git/hooks/hook.py"} {
 		writeForbiddenFilesFixtureFile(t, file)
 	}
@@ -177,24 +177,6 @@ func buildForbiddenFilesLayout(t *testing.T, layout string, root string) {
 	if err := scanner.Err(); err != nil {
 		t.Fatal(err)
 	}
-}
-
-// chdirForTest stands in for t.Chdir, which needs a newer go directive than go.mod declares.
-func chdirForTest(t *testing.T, dir string) {
-	t.Helper()
-
-	previous, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := os.Chdir(previous); err != nil {
-			t.Fatal(err)
-		}
-	})
 }
 
 func writeForbiddenFilesFixtureFile(t *testing.T, path string) {

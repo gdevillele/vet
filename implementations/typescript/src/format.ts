@@ -52,7 +52,11 @@ export async function checkFormat(options: {
     formatted = await runner.format(options.source, options.path);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (/prettier not available|Cannot find module ['"]prettier['"]/i.test(message)) {
+    if (
+      /prettier not available|Cannot find module ['"]prettier['"]/i.test(
+        message,
+      )
+    ) {
       throw new Error(
         "prettier not available; install prettier to enforce source-format (VET008)",
       );

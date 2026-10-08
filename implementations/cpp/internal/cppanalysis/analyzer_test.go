@@ -385,4 +385,3 @@ jobs:
 		t.Fatalf("expected no diagnostics, got %d: %#v", len(diagnostics), diagnostics)
 	}
 }
-

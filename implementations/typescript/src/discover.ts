@@ -9,7 +9,11 @@ export function isTypeScriptFile(filePath: string): boolean {
     return false;
   }
   // Skip declaration files.
-  if (filePath.endsWith(".d.ts") || filePath.endsWith(".d.mts") || filePath.endsWith(".d.cts")) {
+  if (
+    filePath.endsWith(".d.ts") ||
+    filePath.endsWith(".d.mts") ||
+    filePath.endsWith(".d.cts")
+  ) {
     return false;
   }
   return true;
@@ -22,7 +26,11 @@ export function matchesExclude(filePath: string, patterns: string[]): boolean {
     const p = pattern.replaceAll("\\", "/");
     if (p.startsWith("**/")) {
       const suffix = p.slice(3);
-      if (base === suffix || normalized.endsWith(`/${suffix}`) || minimatchSuffix(normalized, suffix)) {
+      if (
+        base === suffix ||
+        normalized.endsWith(`/${suffix}`) ||
+        minimatchSuffix(normalized, suffix)
+      ) {
         return true;
       }
       if (normalized.includes(`/${suffix.replace(/^\*\//, "")}`)) {
@@ -76,7 +84,11 @@ function walkDir(dir: string, recursive: boolean, out: string[]): void {
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") {
+      if (
+        entry.name === "node_modules" ||
+        entry.name === "dist" ||
+        entry.name === ".git"
+      ) {
         continue;
       }
       if (recursive) {
@@ -131,7 +143,11 @@ export function collectTypeScriptFiles(options: {
     }
     const stat = fs.statSync(target);
     if (stat.isFile()) {
-      if (isTypeScriptFile(target) && !seen.has(target) && !matchesExclude(target, options.exclude)) {
+      if (
+        isTypeScriptFile(target) &&
+        !seen.has(target) &&
+        !matchesExclude(target, options.exclude)
+      ) {
         seen.add(target);
         files.push(target);
       }
@@ -157,11 +173,7 @@ function isWorkflowYaml(filePath: string): boolean {
   return base.endsWith(".yml") || base.endsWith(".yaml");
 }
 
-function addWorkflowDir(
-  dir: string,
-  seen: Set<string>,
-  files: string[],
-): void {
+function addWorkflowDir(dir: string, seen: Set<string>, files: string[]): void {
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
     return;
   }
@@ -311,7 +323,11 @@ export function collectForbiddenFileCandidates(options: {
 
   for (const raw of options.paths) {
     const target =
-      raw === "..." ? "." : raw.endsWith("/...") ? raw.slice(0, -4) || "." : raw;
+      raw === "..."
+        ? "."
+        : raw.endsWith("/...")
+          ? raw.slice(0, -4) || "."
+          : raw;
     addExplicitPath(target);
   }
 

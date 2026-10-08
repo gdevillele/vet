@@ -449,10 +449,7 @@ fn run_reports_format_diagnostics() {
     )
     .unwrap();
 
-    let (code, stdout, stderr) = run_cli([
-        "--check-format".to_string(),
-        path_string(dir.path()),
-    ]);
+    let (code, stdout, stderr) = run_cli(["--check-format".to_string(), path_string(dir.path())]);
 
     assert_eq!(code, 1, "stdout={stdout:?} stderr={stderr:?}");
     assert!(stdout.contains("VET008"), "{stdout:?}");

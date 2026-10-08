@@ -217,10 +217,7 @@ fn accepts_rustfmt_formatted_source() {
     let mut config = Config::default();
     config.format.enabled = true;
 
-    let diagnostics = analyze(
-        config,
-        "fn accepted() {\n    println!(\"one\");\n}\n",
-    );
+    let diagnostics = analyze(config, "fn accepted() {\n    println!(\"one\");\n}\n");
 
     assert!(diagnostics.is_empty(), "{diagnostics:#?}");
 }

@@ -5,7 +5,10 @@ export const RULE_GITHUB_ACTIONS_PINNED = "VET014";
 
 const FULL_SHA = /^[0-9a-fA-F]{40}$/;
 
-function lineOf(node: { range?: [number, number, number] | null } | null | undefined, source: string): number {
+function lineOf(
+  node: { range?: [number, number, number] | null } | null | undefined,
+  source: string,
+): number {
   if (!node?.range) {
     return 1;
   }
@@ -19,7 +22,10 @@ function lineOf(node: { range?: [number, number, number] | null } | null | undef
   return line;
 }
 
-function columnOf(node: { range?: [number, number, number] | null } | null | undefined, source: string): number {
+function columnOf(
+  node: { range?: [number, number, number] | null } | null | undefined,
+  source: string,
+): number {
   if (!node?.range) {
     return 1;
   }
