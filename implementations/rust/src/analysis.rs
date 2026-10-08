@@ -847,9 +847,10 @@ fn source_matches_rustfmt(source: &str) -> Result<bool, AnalyzeError> {
     };
 
     {
-        let mut stdin = child.stdin.take().ok_or_else(|| {
-            AnalyzeError::Message("failed to open rustfmt stdin".to_string())
-        })?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| AnalyzeError::Message("failed to open rustfmt stdin".to_string()))?;
         stdin
             .write_all(source.as_bytes())
             .map_err(|err| AnalyzeError::Message(format!("failed to write to rustfmt: {err}")))?;
